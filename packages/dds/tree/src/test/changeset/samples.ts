@@ -3,7 +3,11 @@
  * Licensed under the MIT License.
  */
 
-import { Commutativity, Original, Rebased, Sibling, Sequenced as S, Squashed as Sq, Tiebreak } from "../format";
+import {
+	Commutativity, Original, Rebased, Sibling, Sequenced as S, Squashed as Sq, Tiebreak,
+	// Allow importing from this specific file which is being tested:
+    /* eslint-disable-next-line import/no-internal-modules */
+} from "../../changeset/format";
 
 export namespace SwapCousins {
 	// Swap the first nodes of traits foo and bar using set-like ranges

@@ -11,14 +11,11 @@ import { strict as assert } from "assert";
 import {
 	FieldSchema,
 	GlobalFieldKey, FieldKind, TreeSchema, TreeSchemaIdentifier, ValueSchema,
-} from "../schema/Schema";
-import { codePoint, string } from "../schema/examples/SchemaExamples";
-import { StoredSchemaRepository } from "../schema/StoredSchemaRepository";
-import { treeSchema, fieldSchema, emptyField, rootFieldKey } from "../schema/Builders";
-import {
+	treeSchema, fieldSchema, emptyField, rootFieldKey,
 	Adapters, adaptRepo, checkCompatibility, Compatibility, MissingFieldAdapter, TreeAdapter,
-} from "../schema/View";
-import { isNeverField, isNeverTree } from "../schema/Comparison";
+	isNeverField, isNeverTree, StoredSchemaRepository,
+} from "../../schema";
+import { codePoint, string } from "./examples/SchemaExamples";
 
 class ViewSchemaRepository extends StoredSchemaRepository {
 	public clone(): ViewSchemaRepository {

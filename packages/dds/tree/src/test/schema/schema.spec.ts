@@ -2,16 +2,15 @@
  * Copyright (c) Microsoft Corporation and contributors. All rights reserved.
  * Licensed under the MIT License.
  */
-/* eslint-disable import/no-internal-modules */
 
 import { strict as assert } from "assert";
 
-// TODO: what is the pattern for testing packages which have folders inside src?
-
 import {
-	allowsFieldSuperset, allowsTreeSuperset, allowsValueSuperset, isNeverField, isNeverTree,
-} from "../schema/Comparison";
-import {
+	allowsFieldSuperset,
+	allowsTreeSuperset,
+	allowsValueSuperset,
+	isNeverField,
+	isNeverTree,
 	FieldSchema,
 	GlobalFieldKey,
 	LocalFieldKey,
@@ -20,10 +19,16 @@ import {
 	TreeSchema,
 	TreeSchemaIdentifier,
 	ValueSchema,
-} from "../schema/Schema";
-import { emptyField, emptyMap, emptySet, fieldSchema } from "../schema/Builders";
-import { anyField, anyTree, neverField, neverTree } from "../schema/SpecialSchema";
-import { StoredSchemaRepository } from "../schema/StoredSchemaRepository";
+	emptyField,
+	emptyMap,
+	emptySet,
+	fieldSchema,
+	anyField,
+	anyTree,
+	neverField,
+	neverTree,
+	StoredSchemaRepository,
+} from "../../schema";
 
 describe("Schema", () => {
 	const neverTree2: TreeSchema = {
