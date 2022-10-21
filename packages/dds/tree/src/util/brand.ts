@@ -122,6 +122,17 @@ export function brand<T extends Brand<any, string>>(
 }
 
 /**
+ * Adds a type {@link Brand} to the member type of an array.
+ *
+ * Only do this when specifically allowed by the requirements of the type being converted to.
+ */
+export function brandArray<T extends Brand<any, string>>(
+    value: (T extends BrandedType<infer ValueType, string> ? ValueType : never)[],
+): T[] {
+    return value as T[];
+}
+
+/**
  * Adds a type {@link Brand} to a value, returning it as a  {@link Opaque} handle.
  *
  * Only do this when specifically allowed by the requirements of the type being converted to.
