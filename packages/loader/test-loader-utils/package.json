@@ -34,8 +34,8 @@
   "dependencies": {
     "@fluidframework/common-definitions": "^0.20.1",
     "@fluidframework/common-utils": "^1.0.0",
-    "@fluidframework/driver-definitions": ">=2.0.0-internal.3.0.0 <2.0.0-internal.4.0.0",
-    "@fluidframework/driver-utils": ">=2.0.0-internal.3.0.0 <2.0.0-internal.4.0.0",
+    "@fluidframework/driver-definitions": "workspace:2.0.0-internal.3.0.0",
+    "@fluidframework/driver-utils": "workspace:2.0.0-internal.3.0.0",
     "@fluidframework/protocol-definitions": "^1.1.0"
   },
   "devDependencies": {
@@ -43,11 +43,11 @@
     "@fluidframework/build-common": "^1.1.0",
     "@fluidframework/eslint-config-fluid": "^2.0.0",
     "@fluidframework/test-loader-utils-previous": "npm:@fluidframework/test-loader-utils@2.0.0-internal.2.2.0",
-    "@rushstack/eslint-config": "^2.5.1",
-    "concurrently": "^6.2.0",
+    "@rushstack/eslint-config": "^2.6.2",
+    "concurrently": "^6.5.1",
     "eslint": "~8.6.0",
     "prettier": "~2.6.2",
-    "rimraf": "^2.6.2",
+    "rimraf": "^2.7.1",
     "typescript": "~4.5.5"
   },
   "typeValidation": {
