@@ -5,6 +5,7 @@
 
 export {
 	brand,
+	brandArray,
 	Brand,
 	BrandedType,
 	brandOpaque,

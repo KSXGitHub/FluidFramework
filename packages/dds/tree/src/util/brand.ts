@@ -121,12 +121,27 @@ export function extractFromOpaque<TOpaque extends BrandedType<any, string>>(
  * Adds a type {@link Brand} to a value.
  *
  * Only do this when specifically allowed by the requirements of the type being converted to.
+ *
+ * Note that this only changes the type of the value: at runtime this just returns its input.
  * @alpha
  */
 export function brand<T extends Brand<any, string>>(
 	value: T extends BrandedType<infer ValueType, string> ? ValueType : never,
 ): T {
 	return value as T;
+}
+
+/**
+ * Adds a type {@link Brand} to values in an array.
+ *
+ * Only do this when specifically allowed by the requirements of the type being converted to.
+ * See {@link  brand}.
+ * @alpha
+ */
+export function brandArray<T extends Brand<any, string>>(
+	value: (T extends BrandedType<infer ValueType, string> ? ValueType : never)[],
+): T[] {
+	return value as T[];
 }
 
 /**
