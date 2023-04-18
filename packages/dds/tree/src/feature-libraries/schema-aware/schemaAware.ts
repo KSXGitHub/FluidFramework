@@ -206,10 +206,11 @@ export type TypeSetToTypedTrees<
  * Interface which strongly typed schema collections extend.
  * @alpha
  */
-export interface TypedSchemaData extends SchemaDataAndPolicy<FullSchemaPolicy> {
+export interface TypedSchemaData extends ViewSchemaCollection {
+	readonly policy: FullSchemaPolicy;
 	// TODO: can we use a more specific type here?
-	treeSchemaObject: Record<string, any>; // LabeledTreeSchema
-	allTypes: readonly string[];
+	readonly treeSchemaObject: Record<string, any>; // LabeledTreeSchema
+	readonly allTypes: readonly string[];
 }
 
 /**
