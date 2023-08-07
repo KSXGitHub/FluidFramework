@@ -3,13 +3,11 @@
  * Licensed under the MIT License.
  */
 
+import { strict as assert } from "assert";
 import {
 	FieldKinds,
-	EditableTree,
-	EditableField,
 	typeNameSymbol,
 	valueSymbol,
-	ContextuallyTypedNodeDataObject,
 	jsonableTreeFromCursor,
 	cursorFromContextualData,
 	EditableTreeContext,
@@ -24,10 +22,11 @@ import {
 	Any,
 	TypedSchemaCollection,
 	createMockNodeKeyManager,
+	SchemaAware,
+	isEditableTree,
 } from "../../../feature-libraries";
 import {
 	ValueSchema,
-	FieldKey,
 	EmptyKey,
 	JsonableTree,
 	IEditableForest,
@@ -35,7 +34,6 @@ import {
 	initializeForest,
 	SchemaData,
 } from "../../../core";
-import { brand, Brand } from "../../../util";
 
 const builder = new SchemaBuilder("mock data");
 
@@ -57,16 +55,15 @@ export const complexPhoneSchema = builder.struct("Test:Phone-1.0.0", {
 	extraPhones: SchemaBuilder.field(FieldKinds.optional, simplePhonesSchema),
 });
 
-export const phonesSchema = builder.fieldNode(
-	"Test:Phones-1.0.0",
-	SchemaBuilder.fieldSequence(
-		stringSchema,
-		int32Schema,
-		complexPhoneSchema,
-		// array of arrays
-		simplePhonesSchema,
-	),
+const phonesField = SchemaBuilder.fieldSequence(
+	stringSchema,
+	int32Schema,
+	complexPhoneSchema,
+	// array of arrays
+	simplePhonesSchema,
 );
+
+export const phonesSchema = builder.fieldNode("Test:Phones-1.0.0", phonesField);
 
 export const addressSchema = builder.struct("Test:Address-1.0.0", {
 	zip: SchemaBuilder.field(FieldKinds.value, stringSchema, int32Schema),
@@ -110,80 +107,28 @@ export const fullSchemaData = buildTestSchema(rootPersonSchema);
 
 // TODO: provide relaxed types like these based on ContextuallyTyped setters
 
-export type Float64 = Brand<number, "editable-tree.Float64"> & EditableTree;
-export type Int32 = Brand<number, "editable-tree.Int32"> & EditableTree;
-export type Bool = Brand<boolean, "editable-tree.Bool"> & EditableTree;
+export type Float64 = number;
+export type Int32 = number;
+export type Bool = boolean;
 
-export type ComplexPhone = EditableTree &
-	Brand<
-		{
-			number: string;
-			prefix: string;
-			extraPhones?: SimplePhones;
-		},
-		"editable-tree.Test:Phone-1.0.0"
-	>;
+export type ComplexPhone = SchemaAware.TypedNode<typeof complexPhoneSchema>;
+export type SimplePhones = SchemaAware.TypedNode<typeof simplePhonesSchema>;
 
-export type SimplePhones = EditableField & Brand<string[], "editable-tree.Test:SimplePhones-1.0.0">;
+export type PhonesField = SchemaAware.TypedField<typeof phonesField>;
+export type PhonesFieldData = SchemaAware.TypedField<
+	typeof phonesField,
+	SchemaAware.ApiMode.Flexible
+>;
+export type Phones = SchemaAware.TypedNode<typeof phonesSchema>;
+export type PhonesData = SchemaAware.TypedNode<typeof phonesSchema, SchemaAware.ApiMode.Flexible>;
 
-export type Phones = EditableField &
-	Brand<(Int32 | string | ComplexPhone | SimplePhones)[], "editable-tree.Test:Phones-1.0.0">;
+export type Address = SchemaAware.TypedNode<typeof addressSchema>;
+export type Friends = SchemaAware.TypedNode<typeof mapStringSchema>;
 
-export type Address = EditableTree &
-	Brand<
-		{
-			zip: string | Int32;
-			street?: string;
-			city?: string;
-			country?: string;
-			phones?: Phones;
-			sequencePhones?: SimplePhones;
-		},
-		"editable-tree.Test:Address-1.0.0"
-	>;
-export type Friends = EditableTree & Brand<Record<FieldKey, string>, "editable-tree.Map<String>">;
+export type Person = SchemaAware.TypedNode<typeof personSchema>;
+export type PersonData = SchemaAware.TypedNode<typeof personSchema, SchemaAware.ApiMode.Flexible>;
 
-export type Person = EditableTree &
-	Brand<
-		{
-			name: string;
-			age?: Int32;
-			adult?: Bool;
-			salary?: Float64 | Int32;
-			friends?: Friends;
-			address?: Address;
-		},
-		"editable-tree.Test:Person-1.0.0"
-	>;
-
-export const personData: ContextuallyTypedNodeDataObject = {
-	name: "Adam",
-	age: 35,
-	adult: true,
-	salary: { [valueSymbol]: 10420.2, [typeNameSymbol]: float64Schema.name },
-	friends: {
-		Mat: "Mat",
-	},
-	address: {
-		zip: "99999",
-		street: "treeStreet",
-		phones: [
-			"+49123456778",
-			123456879,
-			{
-				[typeNameSymbol]: complexPhoneSchema.name,
-				number: "012345",
-				prefix: "0123",
-				extraPhones: ["91919191"],
-			},
-			{
-				[typeNameSymbol]: simplePhonesSchema.name,
-				[EmptyKey]: ["112", "113"],
-			},
-		],
-		sequencePhones: ["113", "114"],
-	},
-};
+export const personData: PersonData = getPerson();
 
 export function personJsonableTree(): JsonableTree {
 	return jsonableTreeFromCursor(
@@ -197,15 +142,34 @@ export function personJsonableTree(): JsonableTree {
 	);
 }
 
-export function getPerson(): Person {
-	const age: Int32 = brand(35);
+export function getPerson(): PersonData {
+	const age: Int32 = 35;
+	const phonesFieldData: PhonesFieldData = [
+		"+49123456778",
+		123456879,
+		{
+			[typeNameSymbol]: complexPhoneSchema.name,
+			prefix: "0123",
+			number: "012345",
+			extraPhones: {
+				// TODO: should be able to inline this. Need to update schema aware typing for field nodes.
+				[EmptyKey]: ["91919191"],
+			},
+		},
+		{
+			// TODO: should be able to inline this. Need to update schema aware typing for field nodes.
+			[EmptyKey]: ["112", "113"],
+		},
+	];
+	// TODO: some issue with schema aware API is preventing this conversion from type checking.
+	const phones: PhonesData = phonesFieldData as unknown as PhonesData;
 	return {
 		// typed with built-in primitive type
 		name: "Adam",
 		// explicitly typed
 		age,
 		// inline typed
-		adult: brand<Bool>(true),
+		adult: true,
 		// Float64 | Int32
 		salary: {
 			[valueSymbol]: 10420.2,
@@ -213,26 +177,18 @@ export function getPerson(): Person {
 		},
 		friends: {
 			Mat: "Mat",
-		},
+		} as any, // TODO: fix typing
 		address: {
 			// string | Int32
 			zip: "99999",
 			street: "treeStreet",
 			// (Int32 | string | ComplexPhone | SimplePhones)[]
-			phones: [
-				"+49123456778",
-				123456879,
-				{
-					[typeNameSymbol]: complexPhoneSchema.name,
-					prefix: "0123",
-					number: "012345",
-					extraPhones: ["91919191"],
-				},
-				["112", "113"],
-			],
+			phones,
 			sequencePhones: ["113", "114"],
+			city: undefined,
+			country: undefined,
 		},
-	} as unknown as Person; // TODO: fix up these strong types to reflect unwrapping
+	};
 }
 
 /**
@@ -277,5 +233,7 @@ export function buildTestTree(
 
 export function buildTestPerson(): readonly [SchemaData, Person] {
 	const context = buildTestTree(personData);
-	return [context.schema, context.unwrappedRoot as Person];
+	assert(isEditableTree(context.unwrappedRoot));
+	assert(SchemaAware.downCast(personSchema, context.unwrappedRoot));
+	return [context.schema, context.unwrappedRoot];
 }
