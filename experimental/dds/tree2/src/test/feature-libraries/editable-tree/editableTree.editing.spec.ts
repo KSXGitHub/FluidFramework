@@ -42,10 +42,10 @@ import {
 	personSchemaLibrary,
 } from "./mockData";
 
-const localFieldKey: FieldKey = brand("foo");
-const otherFieldKey: FieldKey = brand("foo2");
+const localFieldKey = brand<FieldKey>("foo");
+const otherFieldKey = brand<FieldKey>("foo2");
 
-const rootSchemaName: TreeSchemaIdentifier = brand("Test");
+const rootSchemaName = brand<TreeSchemaIdentifier>("Test");
 
 function getTestSchema<Kind extends FieldKindTypes>(fieldKind: Kind) {
 	const builder = new SchemaBuilder("getTestSchema", personSchemaLibrary);
@@ -73,7 +73,7 @@ function createSharedTree(
 	});
 	tree.storedSchema.update(schemaData);
 	if (data !== undefined) {
-		tree.context.root.content = data.map(singleTextCursor);
+		tree.context.root.setContent(data.map(singleTextCursor));
 	}
 	provider.processMessages();
 	return tree;
@@ -82,20 +82,20 @@ function createSharedTree(
 describe("editable-tree: editing", () => {
 	it("edit using contextually typed API", () => {
 		const tree = createSharedTree(fullSchemaData, [personJsonableTree()]);
-		assert.equal((tree.root as Person).name, "Adam");
+		assert.equal(tree.context.root.getNode(0).name, "Adam");
 		// delete optional root
-		tree.root = undefined;
+		tree.setContent(undefined);
 		assert.equal(tree.root, undefined);
 
 		// create optional root
-		tree.root = { name: "Mike" };
+		tree.setContent({ name: "Mike" });
 		assert.deepEqual(clone(tree.root), { name: "Mike" });
 
 		// replace optional root
-		tree.root = { name: "Peter", adult: true };
+		tree.setContent({ name: "Peter", adult: true });
 
 		assert(isContextuallyTypedNodeDataObject(tree.root));
-		const maybePerson = tree.root;
+		const maybePerson: Person = tree.root;
 		// unambiguously typed field
 		maybePerson.age = 150;
 
@@ -106,7 +106,7 @@ describe("editable-tree: editing", () => {
 		maybePerson.salary = {
 			[valueSymbol]: "100.1",
 			[typeNameSymbol]: stringSchema.name,
-		};
+		} as any;
 		// unambiguous type
 		maybePerson.salary = "not ok";
 		// ambiguous type since there are multiple options which are numbers:
@@ -122,10 +122,10 @@ describe("editable-tree: editing", () => {
 		maybePerson.salary = {
 			[typeNameSymbol]: float64Schema.name,
 			[valueSymbol]: 99.99,
-		};
+		} as any;
 
 		// Map<String>
-		maybePerson.friends = { Anna: "Anna" };
+		maybePerson.friends = { Anna: "Anna" } as any;
 		maybePerson.friends.John = "John";
 
 		maybePerson.address = {
@@ -140,7 +140,7 @@ describe("editable-tree: editing", () => {
 					number: "1234567",
 				},
 			],
-		};
+		} as any;
 		// make sure the value is not set at the primary field parent node
 		{
 			const person = tree.root as Person;
@@ -277,15 +277,15 @@ describe("editable-tree: editing", () => {
 			});
 
 			// replace sequence field
-			person.address.sequencePhones = brand(["111"]);
+			person.address.sequencePhones = ["111"];
 			// replace array (optional field with primary sequence field)
-			person.address.phones = brand(["54321"]);
+			person.address.phones = ["54321"];
 			assert(person.address.phones !== undefined);
-			const simplePhones: SimplePhones = brand(["555"]);
+			const simplePhones: SimplePhones = ["555"];
 			// create node as array (node has a primary field)
 			person.address.phones[1] = simplePhones;
 			// create primitive node
-			person.address.phones[2] = brand(3);
+			person.address.phones[2] = 3;
 			const clonedPerson = clone(person);
 			assert.deepEqual(clonedPerson, {
 				name: "Adam",
@@ -448,7 +448,7 @@ describe("editable-tree: editing", () => {
 				"Expected exception was not thrown",
 			);
 
-			field.content = ["a", "b", "c"];
+			field.setContent(["a", "b", "c"]);
 			field.replaceNodes(1, ["changed"], 1);
 			assert.deepEqual([...field], ["a", "changed", "c"]);
 			field.replaceNodes(0, [], 1);
@@ -488,11 +488,11 @@ describe("editable-tree: editing", () => {
 			assert.deepEqual([...field], []);
 
 			// Using .content
-			field.content = ["foo", "foo"];
+			field.setContent(["foo", "foo"]);
 			assert.deepEqual([...field], ["foo", "foo"]);
-			field.content = [];
+			field.setContent([]);
 			assert.deepEqual([...field], []);
-			field.content = ["foo"];
+			field.setContent(["foo"]);
 			assert.deepEqual([...field], ["foo"]);
 
 			// edit using assignment
@@ -510,7 +510,7 @@ describe("editable-tree: editing", () => {
 			assert.deepEqual([...field], []);
 
 			// Restore
-			field.content = ["bar"];
+			field.setContent(["bar"]);
 			assert.deepEqual([...field], ["bar"]);
 
 			// delete assignment
@@ -520,7 +520,7 @@ describe("editable-tree: editing", () => {
 
 			// delete content assignment
 			assert.throws(() => {
-				field.content = undefined;
+				field.setContent(undefined);
 			});
 
 			// delete method
@@ -538,7 +538,7 @@ describe("editable-tree: editing", () => {
 			const root = view.root;
 			assert(isEditableTree(root));
 			const field = root[getField](localFieldKey);
-			field.content = [];
+			field.setContent([]);
 			assert.deepEqual([...field], []);
 		});
 
@@ -558,13 +558,13 @@ describe("editable-tree: editing", () => {
 			assert.throws(
 				() => {
 					assert(isEditableTree(root));
-					field.content = ["foo", "foo"];
+					field.setContent(["foo", "foo"]);
 				},
 				(e: Error) => validateAssertionError(e, /incompatible/),
 			);
 
-			// Using .content
-			field.content = "foo";
+			// Using .setContent
+			field.setContent("foo");
 			assert.equal(root[localFieldKey], "foo");
 			{
 				const child = field.content;
@@ -600,7 +600,7 @@ describe("editable-tree: editing", () => {
 			assert.equal(root[localFieldKey], "bar");
 
 			// delete content assignment
-			field.content = undefined;
+			field.setContent(undefined);
 			assert(!(localFieldKey in root));
 			assert.equal(root[localFieldKey], undefined);
 
@@ -629,13 +629,13 @@ describe("editable-tree: editing", () => {
 			assert.throws(
 				() => {
 					assert(isEditableTree(root));
-					field.content = ["foo", "foo"];
+					field.setContent(["foo", "foo"]);
 				},
 				(e: Error) => validateAssertionError(e, /incompatible/),
 			);
 
-			// Using .content
-			field.content = "foo";
+			// Using setContent
+			field.setContent("foo");
 			assert.equal(root[localFieldKey], "foo");
 
 			// edit using assignment
@@ -659,7 +659,7 @@ describe("editable-tree: editing", () => {
 
 			// delete content assignment
 			assert.throws(() => {
-				field.content = undefined;
+				field.setContent(undefined);
 			});
 
 			// delete method

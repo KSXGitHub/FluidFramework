@@ -5,7 +5,7 @@
 
 import { strict as assert } from "assert";
 import { brand } from "../../../util";
-import { proxyTargetSymbol, isEditableTree, getField } from "../../../feature-libraries";
+import { proxyTargetSymbol, getField } from "../../../feature-libraries";
 
 import {
 	FieldProxyTarget,
@@ -17,9 +17,8 @@ import { buildTestPerson } from "./mockData";
 
 describe("editableField", () => {
 	it("can use `getOwnPropertyDescriptor` for symbols of EditableField", () => {
-		const [, proxy] = buildTestPerson();
-		assert(isEditableTree(proxy));
-		const nameField = proxy[getField](brand("name"));
+		const [, person] = buildTestPerson();
+		const nameField = person[getField](brand("name"));
 
 		{
 			const descriptor = Object.getOwnPropertyDescriptor(nameField, proxyTargetSymbol);

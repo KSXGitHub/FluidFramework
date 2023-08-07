@@ -1216,7 +1216,7 @@ describe("editable-tree: data binder", () => {
 					phonesLog.push(downPath);
 				},
 			);
-			root[getField](fieldAddress).content = { zip: "33428", phones: ["12345"] };
+			root[fieldAddress] = { zip: "33428", phones: ["12345"] };
 			address.phones = [111, 112];
 			address.zip = "66566";
 			assert.deepEqual(addrLog, [
