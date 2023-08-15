@@ -44,13 +44,19 @@ const childrenFieldKey: FieldKey = brand("children");
 /*
  * Updates the given `tree` to the given `schema` and inserts `state` as its root.
  */
-function initializeTestTree(tree: ISharedTree, state: JsonableTree = initialTestJsonTree) {
+function initializeTestTree(state: JsonableTree = initialTestJsonTree) {
 	const writeCursor = singleTextCursor(state);
-	tree.schematize({
+	const provider = new TestTreeProviderLite({
 		allowedSchemaModifications: AllowedUpdateType.SchemaCompatible,
 		initialTree: [writeCursor],
 		schema: fullSchemaData,
 	});
+	initializeOpDataCollection(provider, testName);
+	// Note that the child node byte size for the intial tree here should be arbitrary
+	initializeTestTree(provider.trees[0], createInitialTree(BENCHMARK_NODE_COUNT, 1000));
+	deleteCurrentOps(); // We don't want to record any ops from initializing the tree.
+
+	return provider.trees[0];
 }
 
 function utf8Length(data: JsonCompatibleReadOnly): number {

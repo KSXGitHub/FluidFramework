@@ -5,9 +5,10 @@
 
 import { assert } from "@fluidframework/common-utils";
 import { Adapters, TreeAdapter, TreeSchemaIdentifier, ValueSchema } from "../../core";
-import { Sourced, SchemaCollection } from "../modular-schema";
 import { requireAssignableTo, RestrictiveReadonlyRecord } from "../../util";
 import { FieldKindTypes, FieldKinds } from "../default-field-kinds";
+import { FullSchemaPolicy } from "../modular-schema";
+import { Sourced } from "./view";
 import { buildViewSchemaCollection } from "./buildViewSchemaCollection";
 import { AllowedTypes, TreeSchema, TreeSchemaSpecification, FieldSchema } from "./typedTreeSchema";
 import { FlexList } from "./flexList";
@@ -389,7 +390,8 @@ export interface SchemaLibraryData {
 }
 
 /**
- * {@link SchemaCollection} strongly typed over its rootFieldSchema.
+ * Schema data that can be be used to view a document.
+ * Strongly typed over its rootFieldSchema.
  *
  * @remarks
  * This type is mainly used as a type constraint to mean that the code working with it requires strongly typed schema.
@@ -398,8 +400,11 @@ export interface SchemaLibraryData {
  *
  * @alpha
  */
-export interface TypedSchemaCollection<T extends FieldSchema> extends SchemaCollection {
+export interface TypedSchemaCollection<T extends FieldSchema = FieldSchema> {
 	readonly rootFieldSchema: T;
+	readonly treeSchema: ReadonlyMap<TreeSchemaIdentifier, TreeSchema>;
+	readonly policy: FullSchemaPolicy;
+	readonly adapters: Adapters;
 }
 
 /**
@@ -407,7 +412,7 @@ export interface TypedSchemaCollection<T extends FieldSchema> extends SchemaColl
  * Can be aggregated into other libraries by adding to their builders.
  * @alpha
  */
-export interface SchemaLibrary extends SchemaCollection {
+export interface SchemaLibrary extends TypedSchemaCollection {
 	/**
 	 * Schema data aggregated from a collection of libraries by a SchemaBuilder.
 	 */

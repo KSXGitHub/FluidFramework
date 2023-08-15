@@ -44,7 +44,7 @@ import {
 import { SharedTreeBranch } from "../shared-tree-core";
 import { TransactionResult, brand } from "../util";
 import { noopValidator } from "../codec";
-import { SchematizeConfiguration, schematizeView } from "./schematizedTree";
+import { SchematizeConfiguration, schematizeForest } from "./schematizedTree";
 
 /**
  * Events for {@link ISharedTreeView}.
@@ -86,7 +86,8 @@ export interface ViewEvents {
  * @privateRemarks Implementations of this interface must implement the {@link branchKey} property.
  * @alpha
  */
-export interface ISharedTreeView extends AnchorLocator {
+export interface ISharedTreeView<RootSchema extends FieldSchema = FieldSchema>
+	extends AnchorLocator {
 	/**
 	 * Gets the root field of the tree.
 	 *
@@ -169,42 +170,15 @@ export interface ISharedTreeView extends AnchorLocator {
 	redo(): void;
 
 	/**
-	 * A collection of functions for managing transactions.
-	 * Transactions allow edits to be batched into atomic units.
-	 * Edits made during a transaction will update the local state of the tree immediately, but will be squashed into a single edit when the transaction is committed.
-	 * If the transaction is aborted, the local state will be reset to what it was before the transaction began.
-	 * Transactions may nest, meaning that a transaction may be started while a transaction is already ongoing.
-	 *
-	 * To avoid updating observers of the view state with intermediate results during a transaction,
-	 * use {@link ISharedTreeView#fork} and {@link ISharedTreeFork#merge}.
+	 * A collection of functions for managing {@link Transaction}s.
 	 */
-	readonly transaction: {
-		/**
-		 * Start a new transaction.
-		 * If a transaction is already in progress when this new transaction starts, then this transaction will be "nested" inside of it,
-		 * i.e. the outer transaction will still be in progress after this new transaction is committed or aborted.
-		 */
-		start(): void;
-		/**
-		 * Close this transaction by squashing its edits and committing them as a single edit.
-		 * If this is the root view and there are no ongoing transactions remaining, the squashed edit will be submitted to Fluid.
-		 */
-		commit(): TransactionResult.Commit;
-		/**
-		 * Close this transaction and revert the state of the tree to what it was before this transaction began.
-		 */
-		abort(): TransactionResult.Abort;
-		/**
-		 * True if there is at least one transaction currently in progress on this view, otherwise false.
-		 */
-		inProgress(): boolean;
-	};
+	readonly transaction: ITransaction;
 
 	/**
 	 * Spawn a new view which is based off of the current state of this view.
 	 * Any mutations of the new view will not apply to this view until the new view is merged back into this view via `merge()`.
 	 */
-	fork(): SharedTreeView;
+	fork(): SharedTreeView<RootSchema>;
 
 	/**
 	 * Apply all the new changes on the given view to this view.
@@ -212,7 +186,7 @@ export interface ISharedTreeView extends AnchorLocator {
 	 * It is automatically disposed after the merge completes.
 	 * @remarks All ongoing transactions (if any) in `view` will be committed before the merge.
 	 */
-	merge(view: SharedTreeView): void;
+	merge(view: SharedTreeView<RootSchema>): void;
 
 	/**
 	 * Apply all the new changes on the given view to this view.
@@ -220,13 +194,13 @@ export interface ISharedTreeView extends AnchorLocator {
 	 * @param disposeView - whether or not to dispose `view` after the merge completes.
 	 * @remarks All ongoing transactions (if any) in `view` will be committed before the merge.
 	 */
-	merge(view: SharedTreeView, disposeView: boolean): void;
+	merge(view: SharedTreeView<RootSchema>, disposeView: boolean): void;
 
 	/**
 	 * Rebase the given view onto this view.
 	 * @param view - a view which was created by a call to `fork()`. It is modified by this operation.
 	 */
-	rebase(view: SharedTreeView): void;
+	rebase(view: SharedTreeView<RootSchema>): void;
 
 	/**
 	 * Events about this view.
@@ -264,40 +238,7 @@ export interface ISharedTreeView extends AnchorLocator {
 		 */
 		map: ReadonlyMap<LocalNodeKey, EditableTree>;
 	};
-
-	/**
-	 * Takes in a tree and returns a view of it that conforms to the view schema.
-	 * The returned view referees to and can edit the provided one: it is not a fork of it.
-	 * Updates the stored schema in the tree to match the provided one if requested by config and compatible.
-	 *
-	 * If the tree is uninitialized (has no nodes or schema at all),
-	 * it is initialized to the config's initial tree and the provided schema are stored.
-	 * This is done even if `AllowedUpdateType.None`.
-	 *
-	 * @remarks
-	 * Doing initialization here, regardless of `AllowedUpdateType`, allows a small API that is hard to use incorrectly.
-	 * Other approach tend to have leave easy to make mistakes.
-	 * For example, having a separate initialization function means apps can forget to call it, making an app that can only open existing document,
-	 * or call it unconditionally leaving an app that can only create new documents.
-	 * It also would require the schema to be passed into to separate places and could cause issues if they didn't match.
-	 * Since the initialization function couldn't return a typed tree, the type checking wouldn't help catch that.
-	 * Also, if an app manages to create a document, but the initialization fails to get persisted, an app that only calls the initialization function
-	 * on the create code-path (for example how a schematized factory might do it),
-	 * would leave the document in an unusable state which could not be repaired when it is reopened (by the same or other clients).
-	 * Additionally, once out of schema content adapters are properly supported (with lazy document updates),
-	 * this initialization could become just another out of schema content adapter: at tha point it clearly belong here in schematize.
-	 *
-	 * TODO:
-	 * - Implement schema-aware API for return type.
-	 * - Support adapters for handling out of schema data.
-	 */
-	schematize<TRoot extends FieldSchema>(config: SchematizeConfiguration<TRoot>): ISharedTreeView;
 }
-
-/**
- * Used as a static property to access the creation function for a {@link SharedTreeView}.
- */
-export const create = Symbol("Create SharedTreeView");
 
 /**
  * Creates a {@link SharedTreeView}.
@@ -306,16 +247,19 @@ export const create = Symbol("Create SharedTreeView");
  * @remarks This does not create a {@link SharedTree}, but rather a view with the minimal state
  * and functionality required to implement {@link ISharedTreeView}.
  */
-export function createSharedTreeView(args?: {
-	branch?: SharedTreeBranch<DefaultEditBuilder, DefaultChangeset>;
-	changeFamily?: DefaultChangeFamily;
-	schema?: InMemoryStoredSchemaRepository;
-	forest?: IEditableForest;
-	repairProvider?: ForestRepairDataStoreProvider<DefaultChangeset>;
-	nodeKeyManager?: NodeKeyManager;
-	nodeKeyIndex?: NodeKeyIndex;
-	events?: ISubscribable<ViewEvents> & IEmitter<ViewEvents> & HasListeners<ViewEvents>;
-}): ISharedTreeView {
+export function createSharedTreeView<RootSchema extends FieldSchema>(
+	schemaConfig: SchematizeConfiguration<RootSchema>,
+	args?: {
+		branch?: SharedTreeBranch<DefaultEditBuilder, DefaultChangeset>;
+		changeFamily?: DefaultChangeFamily;
+		schema?: InMemoryStoredSchemaRepository;
+		forest?: IEditableForest;
+		repairProvider?: ForestRepairDataStoreProvider<DefaultChangeset>;
+		nodeKeyManager?: NodeKeyManager;
+		nodeKeyIndex?: NodeKeyIndex;
+		events?: ISubscribable<ViewEvents> & IEmitter<ViewEvents> & HasListeners<ViewEvents>;
+	},
+): ISharedTreeView<RootSchema> {
 	const schema = args?.schema ?? new InMemoryStoredSchemaRepository(defaultSchemaPolicy);
 	const forest = args?.forest ?? buildForest(schema, new AnchorSet());
 	const changeFamily =
@@ -340,6 +284,7 @@ export function createSharedTreeView(args?: {
 		);
 	const nodeKeyManager = args?.nodeKeyManager ?? createNodeKeyManager();
 	const context = getEditableTreeContext(
+		schemaConfig.schema,
 		forest,
 		branch.editor,
 		nodeKeyManager,
@@ -347,7 +292,12 @@ export function createSharedTreeView(args?: {
 	);
 	const nodeKeyIndex = args?.nodeKeyIndex ?? new NodeKeyIndex(brand(nodeKeyFieldKey));
 	const events = args?.events ?? createEmitter();
-	return SharedTreeView[create](
+
+	const transaction = new Transaction(branch, changeFamily, forest);
+	schematizeForest(forest, schema, schemaConfig, transaction);
+
+	return new SharedTreeView(
+		transaction,
 		branch,
 		changeFamily,
 		schema,
@@ -360,11 +310,70 @@ export function createSharedTreeView(args?: {
 }
 
 /**
- * An implementation of {@link ISharedTreeView}.
- * @alpha
+ * A collection of functions for managing transactions.
+ * Transactions allow edits to be batched into atomic units.
+ * Edits made during a transaction will update the local state of the tree immediately, but will be squashed into a single edit when the transaction is committed.
+ * If the transaction is aborted, the local state will be reset to what it was before the transaction began.
+ * Transactions may nest, meaning that a transaction may be started while a transaction is already ongoing.
+ *
+ * To avoid updating observers of the view state with intermediate results during a transaction,
+ * use {@link ISharedTreeView#fork} and {@link ISharedTreeFork#merge}.
  */
-export class SharedTreeView implements ISharedTreeView {
-	private constructor(
+export interface ITransaction {
+	/**
+	 * Start a new transaction.
+	 * If a transaction is already in progress when this new transaction starts, then this transaction will be "nested" inside of it,
+	 * i.e. the outer transaction will still be in progress after this new transaction is committed or aborted.
+	 */
+	start(): void;
+	/**
+	 * Close this transaction by squashing its edits and committing them as a single edit.
+	 * If this is the root view and there are no ongoing transactions remaining, the squashed edit will be submitted to Fluid.
+	 */
+	commit(): TransactionResult.Commit;
+	/**
+	 * Close this transaction and revert the state of the tree to what it was before this transaction began.
+	 */
+	abort(): TransactionResult.Abort;
+	/**
+	 * True if there is at least one transaction currently in progress on this view, otherwise false.
+	 */
+	inProgress(): boolean;
+}
+class Transaction implements ITransaction {
+	public constructor(
+		private readonly branch: SharedTreeBranch<DefaultEditBuilder, DefaultChangeset>,
+		private readonly changeFamily: DefaultChangeFamily,
+		private readonly forest: IEditableForest,
+	) {}
+
+	public start(): void {
+		this.branch.startTransaction(
+			new ForestRepairDataStore(this.forest, (change) => this.changeFamily.intoDelta(change)),
+		);
+		this.branch.editor.enterTransaction();
+	}
+	public commit(): TransactionResult.Commit {
+		this.branch.commitTransaction();
+		this.branch.editor.exitTransaction();
+		return TransactionResult.Commit;
+	}
+	public abort(): TransactionResult.Abort {
+		this.branch.abortTransaction();
+		this.branch.editor.exitTransaction();
+		return TransactionResult.Abort;
+	}
+	public inProgress(): boolean {
+		return this.branch.isTransacting();
+	}
+}
+
+/**
+ * An implementation of {@link ISharedTreeView}.
+ */
+export class SharedTreeView<RootSchema extends FieldSchema> implements ISharedTreeView<RootSchema> {
+	public constructor(
+		public readonly transaction: ITransaction,
 		private readonly branch: SharedTreeBranch<DefaultEditBuilder, DefaultChangeset>,
 		private readonly changeFamily: DefaultChangeFamily,
 		private readonly _storedSchema: InMemoryStoredSchemaRepository,
@@ -389,29 +398,6 @@ export class SharedTreeView implements ISharedTreeView {
 		});
 	}
 
-	// SharedTreeView is a public type, but its instantiation is internal
-	private static [create](
-		branch: SharedTreeBranch<DefaultEditBuilder, DefaultChangeset>,
-		changeFamily: DefaultChangeFamily,
-		storedSchema: InMemoryStoredSchemaRepository,
-		forest: IEditableForest,
-		context: EditableTreeContext,
-		_nodeKeyManager: NodeKeyManager,
-		nodeKeyIndex: NodeKeyIndex,
-		events: ISubscribable<ViewEvents> & IEmitter<ViewEvents> & HasListeners<ViewEvents>,
-	): SharedTreeView {
-		return new SharedTreeView(
-			branch,
-			changeFamily,
-			storedSchema,
-			forest,
-			context,
-			_nodeKeyManager,
-			nodeKeyIndex,
-			events,
-		);
-	}
-
 	public get events(): ISubscribable<ViewEvents> {
 		return this._events;
 	}
@@ -432,29 +418,7 @@ export class SharedTreeView implements ISharedTreeView {
 		return this.branch.editor;
 	}
 
-	public readonly transaction: ISharedTreeView["transaction"] = {
-		start: () => {
-			this.branch.startTransaction(
-				new ForestRepairDataStore(this.forest, (change) =>
-					this.changeFamily.intoDelta(change),
-				),
-			);
-			this.branch.editor.enterTransaction();
-		},
-		commit: () => {
-			this.branch.commitTransaction();
-			this.branch.editor.exitTransaction();
-			return TransactionResult.Commit;
-		},
-		abort: () => {
-			this.branch.abortTransaction();
-			this.branch.editor.exitTransaction();
-			return TransactionResult.Abort;
-		},
-		inProgress: () => this.branch.isTransacting(),
-	};
-
-	public readonly nodeKey: ISharedTreeView["nodeKey"] = {
+	public readonly nodeKey: ISharedTreeView<RootSchema>["nodeKey"] = {
 		generate: () => this._nodeKeyManager.generateLocalNodeKey(),
 		stabilize: (key) => this._nodeKeyManager.stabilizeNodeKey(key),
 		localize: (key) => this._nodeKeyManager.localizeNodeKey(key),
@@ -469,17 +433,11 @@ export class SharedTreeView implements ISharedTreeView {
 		this.branch.redo();
 	}
 
-	public schematize<TRoot extends FieldSchema>(
-		config: SchematizeConfiguration<TRoot>,
-	): ISharedTreeView {
-		return schematizeView(this, config);
-	}
-
 	public locate(anchor: Anchor): AnchorNode | undefined {
 		return this._forest.anchors.locate(anchor);
 	}
 
-	public fork(): SharedTreeView {
+	public fork(): SharedTreeView<RootSchema> {
 		const anchors = new AnchorSet();
 		const storedSchema = this._storedSchema.clone();
 		const forest = this._forest.clone(storedSchema, anchors);
@@ -490,12 +448,15 @@ export class SharedTreeView implements ISharedTreeView {
 		);
 		const branch = this.branch.fork(repairDataStoreProvider, anchors);
 		const context = getEditableTreeContext(
+			this.context.schema,
 			forest,
 			branch.editor,
 			this._nodeKeyManager,
 			this._nodeKeyIndex.fieldKey,
 		);
+		const transaction = new Transaction(branch, this.changeFamily, forest);
 		return new SharedTreeView(
+			transaction,
 			branch,
 			this.changeFamily,
 			storedSchema,
@@ -507,7 +468,7 @@ export class SharedTreeView implements ISharedTreeView {
 		);
 	}
 
-	public rebase(view: SharedTreeView): void {
+	public rebase(view: SharedTreeView<RootSchema>): void {
 		view.branch.rebaseOnto(this.branch);
 	}
 
@@ -515,13 +476,13 @@ export class SharedTreeView implements ISharedTreeView {
 	 * Rebase the changes that have been applied to this view over all the new changes in the given view.
 	 * @param view - Either the root view or a view that was created by a call to `fork()`. It is not modified by this operation.
 	 */
-	public rebaseOnto(view: ISharedTreeView): void {
+	public rebaseOnto(view: ISharedTreeView<RootSchema>): void {
 		view.rebase(this);
 	}
 
-	public merge(view: SharedTreeView): void;
-	public merge(view: SharedTreeView, disposeView: boolean): void;
-	public merge(view: SharedTreeView, disposeView = true): void {
+	public merge(view: SharedTreeView<RootSchema>): void;
+	public merge(view: SharedTreeView<RootSchema>, disposeView: boolean): void;
+	public merge(view: SharedTreeView<RootSchema>, disposeView = true): void {
 		assert(
 			!this.transaction.inProgress() || disposeView,
 			0x710 /* A view that is merged into an in-progress transaction must be disposed */,
@@ -561,9 +522,9 @@ export class SharedTreeView implements ISharedTreeView {
  * @returns whether or not the transaction was committed or aborted
  * @alpha
  */
-export function runSynchronous(
-	view: ISharedTreeView,
-	transaction: (view: ISharedTreeView) => TransactionResult | void,
+export function runSynchronous<RootSchema extends FieldSchema>(
+	view: ISharedTreeView<RootSchema>,
+	transaction: (view: ISharedTreeView<RootSchema>) => TransactionResult | void,
 ): TransactionResult {
 	view.transaction.start();
 	const result = transaction(view);

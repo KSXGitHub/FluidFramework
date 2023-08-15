@@ -15,7 +15,6 @@ export {
 	proxyTargetSymbol,
 	UnwrappedEditableField,
 	UnwrappedEditableTree,
-	NewFieldContent,
 	localNodeKeySymbol,
 	createDataBinderBuffering,
 	createDataBinderDirect,
@@ -64,7 +63,6 @@ export {
 	ContextuallyTypedNodeData,
 	MarkedArrayLike,
 	isContextuallyTypedNodeDataObject,
-	getFieldKind,
 	getFieldSchema,
 	ArrayLikeMut,
 	cursorFromContextualData,
@@ -75,6 +73,8 @@ export {
 	cursorsForTypedFieldData,
 	FieldGenerator,
 	TreeDataContext,
+	normalizeNewFieldContent,
+	NewFieldContent,
 } from "./contextuallyTyped";
 
 export { ForestSummarizer } from "./forestSummarizer";
@@ -129,11 +129,6 @@ export {
 	RevisionInfo,
 	HasFieldChanges,
 	revisionMetadataSourceFromInfo,
-	ViewSchema,
-	SchemaCollection,
-	IFieldSchema,
-	ITreeSchema,
-	Sourced,
 	NodeExistsConstraint,
 	NodeExistenceState,
 	BrandedFieldKind,
@@ -151,6 +146,7 @@ export {
 	SchemaLibraryData,
 	LazyTreeSchema,
 	InternalTypedSchemaTypes,
+	ViewSchema,
 } from "./typed-schema";
 
 export { mapFieldMarks, mapMark, mapMarkList, populateChildModifications } from "./deltaUtils";

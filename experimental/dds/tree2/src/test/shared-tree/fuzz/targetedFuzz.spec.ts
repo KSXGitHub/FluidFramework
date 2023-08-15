@@ -29,6 +29,8 @@ import {
 	toJsonableTree,
 	validateTree,
 	validateTreeConsistency,
+	wrongSchema,
+	wrongSchemaConfig,
 } from "../../utils";
 import { ISharedTree, SharedTreeView } from "../../../shared-tree";
 import { makeOpGenerator, EditGeneratorOpWeights, FuzzTestState } from "./fuzzEditGenerators";
@@ -50,7 +52,7 @@ interface AbortFuzzTestState extends FuzzTestState {
  * This interface is meant to be used for tests that require you to store a branch of a tree
  */
 interface BranchedTreeFuzzTestState extends FuzzTestState {
-	branch?: SharedTreeView;
+	branch?: SharedTreeView<typeof wrongSchema.rootFieldSchema>;
 }
 
 /**
@@ -110,12 +112,12 @@ describe("Fuzz - Targeted", () => {
 			takeAsync(opsPerRun, makeOpGenerator(editGeneratorOpWeights));
 		const generator = generatorFactory() as AsyncGenerator<Operation, AbortFuzzTestState>;
 		const model: DDSFuzzModel<
-			SharedTreeTestFactory,
+			SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>,
 			Operation,
-			DDSFuzzTestState<SharedTreeTestFactory>
+			DDSFuzzTestState<SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>>
 		> = {
 			workloadName: "SharedTree",
-			factory: new SharedTreeTestFactory(onCreate),
+			factory: new SharedTreeTestFactory(wrongSchemaConfig, onCreate),
 			generatorFactory: () => generator,
 			reducer: fuzzReducer,
 			validateConsistency: () => {},
@@ -166,12 +168,12 @@ describe("Fuzz - Targeted", () => {
 			takeAsync(opsPerRun, makeOpGenerator(composeVsIndividualWeights));
 
 		const model: DDSFuzzModel<
-			SharedTreeTestFactory,
+			SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>,
 			Operation,
-			DDSFuzzTestState<SharedTreeTestFactory>
+			DDSFuzzTestState<SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>>
 		> = {
 			workloadName: "SharedTree",
-			factory: new SharedTreeTestFactory(onCreate),
+			factory: new SharedTreeTestFactory(wrongSchemaConfig, onCreate),
 			generatorFactory,
 			reducer: fuzzComposedVsIndividualReducer,
 			validateConsistency: () => {},
@@ -205,12 +207,12 @@ describe("Fuzz - Targeted", () => {
 			takeAsync(opsPerRun, makeOpGenerator(undoRedoWeights));
 
 		const model: DDSFuzzModel<
-			SharedTreeTestFactory,
+			SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>,
 			Operation,
-			DDSFuzzTestState<SharedTreeTestFactory>
+			DDSFuzzTestState<SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>>
 		> = {
 			workloadName: "SharedTree",
-			factory: new SharedTreeTestFactory(onCreate),
+			factory: new SharedTreeTestFactory(wrongSchemaConfig, onCreate),
 			generatorFactory,
 			reducer: fuzzReducer,
 			validateConsistency: () => {},
@@ -287,12 +289,12 @@ describe("Fuzz - Targeted", () => {
 			takeAsync(opsPerRun, makeOpGenerator(undoRedoWeights));
 
 		const model: DDSFuzzModel<
-			SharedTreeTestFactory,
+			SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>,
 			Operation,
-			DDSFuzzTestState<SharedTreeTestFactory>
+			DDSFuzzTestState<SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>>
 		> = {
 			workloadName: "SharedTree",
-			factory: new SharedTreeTestFactory(onCreate),
+			factory: new SharedTreeTestFactory(wrongSchemaConfig, onCreate),
 			generatorFactory,
 			reducer: fuzzReducer,
 			validateConsistency: () => {},
@@ -366,12 +368,12 @@ describe("Fuzz - Targeted", () => {
 			takeAsync(opsPerRun, makeOpGenerator(unSequencedUndoRedoWeights));
 
 		const model: DDSFuzzModel<
-			SharedTreeTestFactory,
+			SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>,
 			Operation,
-			DDSFuzzTestState<SharedTreeTestFactory>
+			DDSFuzzTestState<SharedTreeTestFactory<typeof wrongSchema.rootFieldSchema>>
 		> = {
 			workloadName: "SharedTree",
-			factory: new SharedTreeTestFactory(onCreate),
+			factory: new SharedTreeTestFactory(wrongSchemaConfig, onCreate),
 			generatorFactory,
 			reducer: fuzzReducer,
 			validateConsistency: validateTreeConsistency,

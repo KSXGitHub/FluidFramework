@@ -6,6 +6,18 @@
 import assert from "assert";
 import { SharedTreeCore } from "../../shared-tree-core";
 import { spyOnMethod, SummarizeType, TestTreeProvider } from "../utils";
+import { Any, SchemaBuilder } from "../../feature-libraries";
+import { AllowedUpdateType } from "../../core";
+
+const emptinessSchema = new SchemaBuilder("TestTreeProvider").intoDocumentSchema(
+	SchemaBuilder.fieldOptional(Any),
+);
+
+const config = {
+	initialTree: undefined,
+	allowedSchemaModifications: AllowedUpdateType.None,
+	schema: emptinessSchema,
+};
 
 describe("TestTreeProvider", () => {
 	it("can manually trigger summaries with summarizeOnDemand", async () => {
@@ -14,7 +26,7 @@ describe("TestTreeProvider", () => {
 			summaryCount += 1;
 		});
 
-		const provider = await TestTreeProvider.create(1, SummarizeType.onDemand);
+		const provider = await TestTreeProvider.create(config, 1, SummarizeType.onDemand);
 		const summaries = summaryCount;
 		await provider.summarize();
 
@@ -26,7 +38,7 @@ describe("TestTreeProvider", () => {
 	it("cannot manually trigger summaries without setting summarizeOnDemand", async () => {
 		let summarizerError;
 		try {
-			const provider = await TestTreeProvider.create(1);
+			const provider = await TestTreeProvider.create(config, 1);
 			await provider.summarize();
 		} catch (error) {
 			summarizerError = error;
@@ -37,7 +49,7 @@ describe("TestTreeProvider", () => {
 	it("cannot manually trigger summaries with 0 trees", async () => {
 		let summarizerError;
 		try {
-			const provider = await TestTreeProvider.create(0, SummarizeType.onDemand);
+			const provider = await TestTreeProvider.create(config, 0, SummarizeType.onDemand);
 			await provider.summarize();
 		} catch (error) {
 			summarizerError = error;
@@ -51,7 +63,7 @@ describe("TestTreeProvider", () => {
 			summaryCount += 1;
 		});
 
-		const provider = await TestTreeProvider.create(2, SummarizeType.onDemand);
+		const provider = await TestTreeProvider.create(config, 2, SummarizeType.onDemand);
 
 		const summaries = summaryCount;
 		await provider.summarize();

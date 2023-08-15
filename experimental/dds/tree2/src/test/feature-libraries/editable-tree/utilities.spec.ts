@@ -8,7 +8,6 @@ import {
 	FieldKinds,
 	Multiplicity,
 	getPrimaryField,
-	getFieldKind,
 	getFieldSchema,
 	SchemaBuilder,
 } from "../../../feature-libraries";
@@ -50,7 +49,7 @@ describe("editable-tree utilities", () => {
 		assert(primary !== undefined);
 		assert.deepEqual(getFieldSchema(primary.key, arraySchema), schema);
 		assert.equal(
-			getFieldKind(getFieldSchema(primary.key, arraySchema)).multiplicity,
+			getFieldSchema(primary.key, arraySchema).kind.multiplicity,
 			Multiplicity.Sequence,
 		);
 		assert.deepEqual(primary, expectedPrimary);

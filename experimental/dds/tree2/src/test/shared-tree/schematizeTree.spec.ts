@@ -7,18 +7,41 @@ import {
 	MockFluidDataStoreRuntime,
 	validateAssertionError,
 } from "@fluidframework/test-runtime-utils";
-import { SchemaBuilder, Any, TypedSchemaCollection, FieldSchema } from "../../feature-libraries";
-import { ISharedTreeView, SharedTreeFactory } from "../../shared-tree";
+import {
+	SchemaBuilder,
+	Any,
+	TypedSchemaCollection,
+	FieldSchema,
+	FieldKinds,
+	NewFieldContent,
+	normalizeNewFieldContent,
+	allowsRepoSuperset,
+	defaultSchemaPolicy,
+} from "../../feature-libraries";
+import {
+	ISharedTreeView,
+	SharedTreeFactory,
+	SharedTreeView,
+	createSharedTreeView,
+} from "../../shared-tree";
 import {
 	ValueSchema,
 	AllowedUpdateType,
 	storedEmptyFieldSchema,
 	SimpleObservingDependent,
+	IEditableForest,
+	IForestSubscription,
+	ITreeCursor,
 } from "../../core";
 import { typeboxValidator } from "../../external-utilities";
-import { TestTreeProviderLite } from "../utils";
-
-const factory = new SharedTreeFactory({ jsonValidator: typeboxValidator });
+import {
+	TestTreeProviderLite,
+	expectJsonTree,
+	jsonableTreeFromForest,
+	wrongSchemaConfig,
+} from "../utils";
+import { TreeContent, schematizeView } from "../../shared-tree/schematizedTree";
+import { expectTreeSequence } from "../feature-libraries/editable-tree/utils";
 
 const builder = new SchemaBuilder("Schematize Tree Tests");
 const root = builder.leaf("root", ValueSchema.Number);
@@ -32,42 +55,76 @@ const builderValue = new SchemaBuilder("Schematize Tree Tests");
 const root2 = builderValue.leaf("root", ValueSchema.Number);
 const schemaValueRoot = builderValue.intoDocumentSchema(SchemaBuilder.fieldValue(Any));
 
-describe("schematizeView", () => {
+const emptySchema = new SchemaBuilder("Empty").intoDocumentSchema(
+	SchemaBuilder.field(FieldKinds.forbidden),
+);
+
+const configEmpty = {
+	allowedSchemaModifications: AllowedUpdateType.None,
+	initialTree: undefined,
+	schema: emptySchema,
+};
+
+const configBasic = {
+	allowedSchemaModifications: AllowedUpdateType.None,
+	initialTree: 10 as any,
+	schema,
+};
+
+const configGeneralized = {
+	allowedSchemaModifications: AllowedUpdateType.None,
+	initialTree: 10 as any,
+	schema: schemaGeneralized,
+};
+
+function expectForest(forest: IForestSubscription, content: TreeContent<any>): void {
+	// Check schema match
+	assert(allowsRepoSuperset(defaultSchemaPolicy, forest.schema, content.schema));
+	assert(allowsRepoSuperset(defaultSchemaPolicy, content.schema, forest.schema));
+
+	const expected: readonly ITreeCursor[] = normalizeNewFieldContent(
+		{ schema: content.schema },
+		content.schema.rootFieldSchema,
+		content.initialTree,
+	);
+
+	const actual = jsonableTreeFromForest(forest);
+	assert.deepEqual(actual, expected);
+}
+
+describe("schematizeForest", () => {
 	function testInitialize<TRoot extends FieldSchema>(
 		name: string,
 		documentSchema: TypedSchemaCollection<TRoot>,
 	): void {
 		describe(`Initialize with ${name} root`, () => {
-			function expectSchema(tree: ISharedTreeView): void {
-				assert.equal(
-					tree.storedSchema.rootFieldSchema.kind.identifier,
-					documentSchema.rootFieldSchema.kind.identifier,
-				);
-				assert.deepEqual(
-					tree.storedSchema.rootFieldSchema.types,
-					documentSchema.rootFieldSchema.types,
-				);
-				assert(tree.storedSchema.treeSchema.has(root.name));
-				assert.equal(tree.root, 10);
-			}
-
 			it("initialize tree schema", () => {
-				const tree = factory.create(new MockFluidDataStoreRuntime(), "test");
-				assert.equal(tree.storedSchema.rootFieldSchema, storedEmptyFieldSchema);
-
-				tree.schematize({
-					allowedSchemaModifications: AllowedUpdateType.None,
-					initialTree: 10 as any,
-					schema: documentSchema,
+				const factory = new SharedTreeFactory({
+					jsonValidator: typeboxValidator,
+					schema: {
+						allowedSchemaModifications: AllowedUpdateType.None,
+						initialTree: 10 as any,
+						schema: documentSchema,
+					},
 				});
+				const tree = factory.create(new MockFluidDataStoreRuntime(), "test");
 				expectSchema(tree);
 			});
 
 			it("initialization works with collaboration", () => {
+				const factory = new SharedTreeFactory({
+					jsonValidator: typeboxValidator,
+					schema: {
+						allowedSchemaModifications: AllowedUpdateType.None,
+						initialTree: 10 as any,
+						schema: documentSchema,
+					},
+				});
 				const provider = new TestTreeProviderLite(2, factory);
 				const tree = provider.trees[0];
 
-				tree.schematize({
+				const view = createSharedTreeView(configEmpty);
+				schematizeView(tree, {
 					allowedSchemaModifications: AllowedUpdateType.None,
 					initialTree: 10 as any,
 					schema: documentSchema,

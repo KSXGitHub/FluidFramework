@@ -4,12 +4,7 @@
  */
 
 import { Value, TreeSchemaIdentifier, ITreeCursor, isCursor, FieldKey } from "../../core";
-import {
-	PrimitiveValue,
-	typeNameSymbol,
-	valueSymbol,
-	ContextuallyTypedFieldData,
-} from "../contextuallyTyped";
+import { PrimitiveValue, typeNameSymbol, valueSymbol, NewFieldContent } from "../contextuallyTyped";
 import { LocalNodeKey } from "../node-key";
 import { UntypedField, UntypedTreeCore, parentField } from "../untypedTree";
 import { EditableTreeContext } from "./editableTreeContext";
@@ -118,21 +113,6 @@ export interface EditableTree
 	 */
 	readonly [parentField]: { readonly parent: EditableField; readonly index: number };
 }
-
-/**
- * Content to use for a field.
- *
- * When used, this content will be deeply copied into the tree, and must comply with the schema.
- *
- * The content must follow the {@link Multiplicity} of the {@link FieldKind}:
- * - use a single cursor for an `optional` or `value` field;
- * - use array of cursors for a `sequence` field;
- *
- * TODO: this should allow a field cursor instead of an array of cursors.
- * TODO: Make this generic so a variant of this type that allows placeholders for detached sequences to consume.
- * @alpha
- */
-export type NewFieldContent = ITreeCursor | readonly ITreeCursor[] | ContextuallyTypedFieldData;
 
 /**
  * Check if NewFieldContent is made of {@link ITreeCursor}s.

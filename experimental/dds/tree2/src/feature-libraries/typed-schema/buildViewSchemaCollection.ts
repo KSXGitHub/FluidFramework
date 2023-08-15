@@ -5,10 +5,15 @@
 
 import { assert } from "@fluidframework/common-utils";
 import { Adapters, TreeSchemaIdentifier } from "../../core";
-import { FullSchemaPolicy, SchemaCollection } from "../modular-schema";
+import { FullSchemaPolicy } from "../modular-schema";
 import { fail } from "../../util";
 import { defaultSchemaPolicy, FieldKinds } from "../default-field-kinds";
-import { SchemaBuilder, SchemaLibraryData, SourcedAdapters } from "./schemaBuilder";
+import {
+	SchemaBuilder,
+	SchemaLibraryData,
+	SourcedAdapters,
+	TypedSchemaCollection,
+} from "./schemaBuilder";
 import { FieldSchema, TreeSchema, allowedTypesIsAny } from "./typedTreeSchema";
 import { normalizeFlexListEager } from "./flexList";
 
@@ -23,7 +28,7 @@ import { normalizeFlexListEager } from "./flexList";
  */
 export function buildViewSchemaCollection(
 	libraries: Iterable<SchemaLibraryData>,
-): SchemaCollection {
+): TypedSchemaCollection {
 	let rootFieldSchema: FieldSchema | undefined;
 	const treeSchema: Map<TreeSchemaIdentifier, TreeSchema> = new Map();
 	const adapters: SourcedAdapters = { tree: [] };
@@ -96,7 +101,7 @@ export function buildViewSchemaCollection(
 	};
 }
 
-export interface ViewSchemaCollection2 {
+export interface ViewSchemaCollection {
 	readonly rootFieldSchema?: FieldSchema;
 	readonly treeSchema: ReadonlyMap<TreeSchemaIdentifier, TreeSchema>;
 	readonly policy: FullSchemaPolicy;
@@ -109,7 +114,7 @@ export interface ViewSchemaCollection2 {
  * As much as possible tries to detect anything that might be a mistake made by the schema author.
  * This will error on some valid but probably never intended to be used patterns (like never nodes).
  */
-export function validateViewSchemaCollection(collection: ViewSchemaCollection2): string[] {
+export function validateViewSchemaCollection(collection: ViewSchemaCollection): string[] {
 	const errors: string[] = [];
 
 	// TODO: make this check specific to document schema. Replace check here for no tre or field schema (empty library).
@@ -155,7 +160,7 @@ export function validateViewSchemaCollection(collection: ViewSchemaCollection2):
 }
 
 export function validateRootField(
-	collection: ViewSchemaCollection2,
+	collection: ViewSchemaCollection,
 	field: FieldSchema,
 	errors: string[],
 ): void {
@@ -164,7 +169,7 @@ export function validateRootField(
 }
 
 export function validateField(
-	collection: ViewSchemaCollection2,
+	collection: ViewSchemaCollection,
 	field: FieldSchema,
 	describeField: () => string,
 	errors: string[],

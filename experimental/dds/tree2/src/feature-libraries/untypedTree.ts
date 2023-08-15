@@ -6,16 +6,15 @@
 import {
 	Value,
 	FieldKey,
-	FieldStoredSchema,
 	TreeSchemaIdentifier,
 	ForestEvents,
-	NamedTreeSchema,
 	SchemaData,
 	UpPath,
 	PathVisitor,
 } from "../core";
 import { ISubscribable } from "../events";
 import { PrimitiveValue, MarkedArrayLike, typeNameSymbol, valueSymbol } from "./contextuallyTyped";
+import { FieldSchema, TreeSchema } from "./typed-schema";
 
 /**
  * This file provides an API for working with trees which is type safe even when schema is not known.
@@ -105,8 +104,7 @@ export interface UntypedTreeCore<TContext = UntypedTreeContext, TField = Untyped
 	 * The type of the node.
 	 * If this node is well-formed, it must follow this schema.
 	 */
-	// TODO: update implementation to ensure a NamedTreeSchema is returned, and view schema is used in typed views.
-	readonly [typeSymbol]: NamedTreeSchema;
+	readonly [typeSymbol]: TreeSchema;
 
 	/**
 	 * A common context of a "forest" of EditableTrees.
@@ -175,9 +173,9 @@ export interface UntypedField<
 	TUnwrappedChild = UnwrappedUntypedTree<TContext>,
 > extends MarkedArrayLike<TUnwrappedChild> {
 	/**
-	 * The `FieldStoredSchema` of this field.
+	 * The `FieldSchema` of this field.
 	 */
-	readonly fieldSchema: FieldStoredSchema;
+	readonly fieldSchema: FieldSchema;
 
 	/**
 	 * The `FieldKey` of this field.

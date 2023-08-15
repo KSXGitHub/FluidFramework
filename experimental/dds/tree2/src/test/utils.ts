@@ -35,14 +35,16 @@ import { ConfigTypes, IConfigProviderBase } from "@fluidframework/telemetry-util
 import {
 	ISharedTree,
 	ISharedTreeView,
+	SchematizeConfiguration,
 	SharedTreeFactory,
 	createSharedTreeView,
 } from "../shared-tree";
 import {
+	Any,
 	DefaultChangeFamily,
 	DefaultChangeset,
 	DefaultEditBuilder,
-	defaultSchemaPolicy,
+	FieldSchema,
 	jsonableTreeFromCursor,
 	mapFieldMarks,
 	mapMarkList,
@@ -51,6 +53,7 @@ import {
 	RevisionInfo,
 	RevisionMetadataSource,
 	revisionMetadataSourceFromInfo,
+	SchemaBuilder,
 	singleTextCursor,
 } from "../feature-libraries";
 import {
@@ -74,18 +77,19 @@ import {
 	UndoRedoManager,
 	ChangeFamilyEditor,
 	ChangeFamily,
-	InMemoryStoredSchemaRepository,
 	TaggedChange,
 	TreeSchemaBuilder,
-	Named,
-	NamedTreeSchema,
 	treeSchema,
 	FieldUpPath,
+	TreeSchemaIdentifier,
+	TreeStoredSchema,
+	AllowedUpdateType,
+	IForestSubscription,
 } from "../core";
-import { JsonCompatible, brand, makeArray } from "../util";
+import { JsonCompatible, Named, brand, makeArray } from "../util";
 import { ICodecFamily, withSchemaValidation } from "../codec";
 import { typeboxValidator } from "../external-utilities";
-import { cursorToJsonObject, jsonSchema, jsonString, singleJsonCursor } from "../domains";
+import { cursorToJsonObject, jsonRoot, jsonSchema, jsonString, singleJsonCursor } from "../domains";
 
 // Testing utilities
 
@@ -156,7 +160,8 @@ export class MockDependent extends SimpleObservingDependent {
  * Manages the creation, connection, and retrieval of SharedTrees and related components for ease of testing.
  * Satisfies the {@link ITestObjectProvider} interface.
  */
-export type ITestTreeProvider = TestTreeProvider & ITestObjectProvider;
+export type ITestTreeProvider<RootSchema extends FieldSchema> = TestTreeProvider<RootSchema> &
+	ITestObjectProvider;
 
 export enum SummarizeType {
 	onDemand = 0,
@@ -168,15 +173,15 @@ export enum SummarizeType {
  * A test helper class that manages the creation, connection and retrieval of SharedTrees. Instances of this
  * class are created via {@link TestTreeProvider.create} and satisfy the {@link ITestObjectProvider} interface.
  */
-export class TestTreeProvider {
+export class TestTreeProvider<RootSchema extends FieldSchema> {
 	private static readonly treeId = "TestSharedTree";
 
 	private readonly provider: ITestObjectProvider;
-	private readonly _trees: ISharedTree[] = [];
+	private readonly _trees: ISharedTree<RootSchema>[] = [];
 	private readonly _containers: IContainer[] = [];
 	private readonly summarizer?: ISummarizer;
 
-	public get trees(): readonly ISharedTree[] {
+	public get trees(): readonly ISharedTree<RootSchema>[] {
 		return this._trees;
 	}
 
@@ -199,11 +204,15 @@ export class TestTreeProvider {
 	 * await trees.ensureSynchronized();
 	 * ```
 	 */
-	public static async create(
+	public static async create<RootSchema extends FieldSchema>(
+		schema: SchematizeConfiguration<RootSchema>,
 		trees = 0,
 		summarizeType: SummarizeType = SummarizeType.disabled,
-		factory: SharedTreeFactory = new SharedTreeFactory({ jsonValidator: typeboxValidator }),
-	): Promise<ITestTreeProvider> {
+		factory: SharedTreeFactory<RootSchema> = new SharedTreeFactory({
+			schema,
+			jsonValidator: typeboxValidator,
+		}),
+	): Promise<ITestTreeProvider<RootSchema>> {
 		// The on-demand summarizer shares a container with the first tree, so at least one tree and container must be created right away.
 		assert(
 			!(trees === 0 && summarizeType === SummarizeType.onDemand),
@@ -240,13 +249,13 @@ export class TestTreeProvider {
 				container,
 				firstTree,
 				summarizer,
-			]) as ITestTreeProvider;
+			]) as ITestTreeProvider<RootSchema>;
 			for (let i = 1; i < trees; i++) {
 				await provider.createTree();
 			}
 			return provider;
 		} else {
-			const provider = new TestTreeProvider(objProvider) as ITestTreeProvider;
+			const provider = new TestTreeProvider(objProvider) as ITestTreeProvider<RootSchema>;
 			for (let i = 0; i < trees; i++) {
 				await provider.createTree();
 			}
@@ -277,9 +286,9 @@ export class TestTreeProvider {
 
 		this._containers.push(container);
 		const dataObject = await requestFluidObject<ITestFluidObject>(container, "/");
-		return (this._trees[this.trees.length] = await dataObject.getSharedObject<ISharedTree>(
-			TestTreeProvider.treeId,
-		));
+		return (this._trees[this.trees.length] = await dataObject.getSharedObject<
+			ISharedTree<RootSchema>
+		>(TestTreeProvider.treeId));
 	}
 
 	/**
@@ -326,9 +335,33 @@ export class TestTreeProvider {
 }
 
 /**
+ * Document Schema which is not correct.
+ * Use as a transitionary tool when migrating code that does not provide a schema toward one that provides a correct schema.
+ * Using this allows representing an intermediate state that still has an incorrect schema, but is explicit about it.
+ * This is particularly useful when modifying APIs to require schema, and a lot of code has to be updated.
+ */
+// TODO: remove all usages of this.
+export const wrongSchema = new SchemaBuilder("Wrong Schema").intoDocumentSchema(
+	SchemaBuilder.fieldSequence(Any),
+);
+
+/**
+ * Schematize config Schema which is not correct.
+ * Use as a transitionary tool when migrating code that does not provide a schema toward one that provides a correct schema.
+ * Using this allows representing an intermediate state that still has an incorrect schema, but is explicit about it.
+ * This is particularly useful when modifying APIs to require schema, and a lot of code has to be updated.
+ */
+// TODO: remove all usages of this.
+export const wrongSchemaConfig: SchematizeConfiguration<typeof wrongSchema.rootFieldSchema> = {
+	schema: wrongSchema,
+	allowedSchemaModifications: AllowedUpdateType.None,
+	initialTree: [],
+};
+
+/**
  * A test helper class that creates one or more SharedTrees connected to mock services.
  */
-export class TestTreeProviderLite {
+export class TestTreeProviderLite<RootSchema extends FieldSchema> {
 	private static readonly treeId = "TestSharedTree";
 	private readonly runtimeFactory = new MockContainerRuntimeFactory();
 	public readonly trees: readonly ISharedTree[];
@@ -347,8 +380,12 @@ export class TestTreeProviderLite {
 	 * ```
 	 */
 	public constructor(
+		schema: SchematizeConfiguration<RootSchema>,
 		trees = 1,
-		private readonly factory = new SharedTreeFactory({ jsonValidator: typeboxValidator }),
+		private readonly factory = new SharedTreeFactory({
+			schema,
+			jsonValidator: typeboxValidator,
+		}),
 	) {
 		assert(trees >= 1, "Must initialize provider with at least one tree");
 		const t: ISharedTree[] = [];
@@ -474,16 +511,19 @@ export function assertDeltaEqual(a: Delta.FieldMarks, b: Delta.FieldMarks): void
 /**
  * A test helper that allows custom code to be injected when a tree is created/loaded.
  */
-export class SharedTreeTestFactory extends SharedTreeFactory {
+export class SharedTreeTestFactory<
+	RootSchema extends FieldSchema,
+> extends SharedTreeFactory<RootSchema> {
 	/**
 	 * @param onCreate - Called once for each created tree (not called for trees loaded from summaries).
 	 * @param onLoad - Called once for each tree that is loaded from a summary.
 	 */
 	public constructor(
+		schema: SchematizeConfiguration<RootSchema>,
 		private readonly onCreate: (tree: ISharedTree) => void,
 		private readonly onLoad?: (tree: ISharedTree) => void,
 	) {
-		super({ jsonValidator: typeboxValidator });
+		super({ schema, jsonValidator: typeboxValidator });
 	}
 
 	public override async load(
@@ -562,35 +602,36 @@ export function validateTreeConsistency(treeA: ISharedTree, treeB: ISharedTree):
 	assert.deepEqual(toJsonableTree(treeA), toJsonableTree(treeB));
 }
 
-export function makeTreeFromJson(json: JsonCompatible[] | JsonCompatible): ISharedTreeView {
-	const cursors = Array.isArray(json) ? json.map(singleJsonCursor) : singleJsonCursor(json);
-	return makeTreeFromCursor(cursors, jsonSchema);
-}
+const jsonSequenceRootField = SchemaBuilder.fieldSequence(...jsonRoot);
+export const jsonSequenceRootSchema = new SchemaBuilder(
+	"JsonSequenceRoot",
+	jsonSchema,
+).intoDocumentSchema(jsonSequenceRootField);
 
 /**
- * @remarks Remove this once schematize can do the work.
+ * If the root is an array, this creates a sequence field at the root instead of a JSON array node.
+ *
+ * If the root is not an array, a single item root sequence is used.
  */
-export function makeTreeFromCursor(
-	cursor: ITreeCursorSynchronous[] | ITreeCursorSynchronous,
-	schemaData: SchemaData,
-): ISharedTreeView {
-	const schemaPolicy = defaultSchemaPolicy;
-	const tree: ISharedTreeView = createSharedTreeView();
-	// TODO: use ISharedTreeView.schematize once it supports cursors
-	tree.storedSchema.update(new InMemoryStoredSchemaRepository(schemaPolicy, schemaData));
-	const field = tree.editor.sequenceField({
-		parent: undefined,
-		field: rootFieldKey,
+export function makeTreeFromJson(
+	json: JsonCompatible[] | JsonCompatible,
+): ISharedTreeView<typeof jsonSequenceRootField> {
+	const cursors = (Array.isArray(json) ? json : [json]).map(singleJsonCursor);
+	const tree = createSharedTreeView({
+		schema: jsonSequenceRootSchema,
+		allowedSchemaModifications: AllowedUpdateType.SchemaCompatible,
+		initialTree: cursors,
 	});
-	if (!Array.isArray(cursor) || cursor.length > 0) {
-		field.insert(0, cursor);
-	}
 	return tree;
 }
 
 export function toJsonableTree(tree: ISharedTreeView): JsonableTree[] {
-	const readCursor = tree.forest.allocateCursor();
-	moveToDetachedField(tree.forest, readCursor);
+	return jsonableTreeFromForest(tree.forest);
+}
+
+export function jsonableTreeFromForest(forest: IForestSubscription): JsonableTree[] {
+	const readCursor = forest.allocateCursor();
+	moveToDetachedField(forest, readCursor);
 	const jsonable = mapCursorField(readCursor, jsonableTreeFromCursor);
 	readCursor.free();
 	return jsonable;
@@ -608,7 +649,7 @@ export function toJsonTree(tree: ISharedTreeView): JsonCompatible[] {
 }
 
 /**
- * Helper function to insert node at a given index.
+ * Helper function to insert a jsonString at a given index of the documents root field.
  *
  * @param tree - The tree on which to perform the insert.
  * @param index - The index in the root field at which to insert.
@@ -846,9 +887,11 @@ export function defaultRevisionMetadataFromChanges(
 }
 
 /**
- * Helper for building {@link NamedTreeSchema} without using {@link SchemaBuilder}.
+ * Helper for building {@link Named} {@link TreeStoredSchema} without using {@link SchemaBuilder}.
  */
-export function namedTreeSchema(data: TreeSchemaBuilder & Named<string>): NamedTreeSchema {
+export function namedTreeSchema(
+	data: TreeSchemaBuilder & Named<string>,
+): Named<TreeSchemaIdentifier> & TreeStoredSchema {
 	return {
 		name: brand(data.name),
 		...treeSchema({ ...data }),

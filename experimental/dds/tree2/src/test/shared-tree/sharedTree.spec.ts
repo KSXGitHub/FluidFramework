@@ -25,6 +25,7 @@ import {
 	SummarizeType,
 	TestTreeProvider,
 	TestTreeProviderLite,
+	jsonSequenceRootSchema,
 	namedTreeSchema,
 } from "../utils";
 import {
@@ -56,13 +57,19 @@ import { EditManager } from "../../shared-tree-core";
 
 const schemaCodec = makeSchemaCodec({ jsonValidator: typeboxValidator });
 
+const config = {
+	schema: jsonSequenceRootSchema,
+	initialTree: [],
+	allowedSchemaModifications: AllowedUpdateType.None,
+};
+
 const fooKey: FieldKey = brand("foo");
 
 describe("SharedTree", () => {
 	it("reads only one node", () => {
 		// This is a regression test for a scenario in which a transaction would apply its delta twice,
 		// inserting two nodes instead of just one
-		const provider = new TestTreeProviderLite();
+		const provider = new TestTreeProviderLite(config);
 		runSynchronous(provider.trees[0], (t) => {
 			const writeCursor = singleTextCursor({ type: brand("LonelyNode") });
 			const field = t.editor.sequenceField({ parent: undefined, field: rootFieldKey });
@@ -78,7 +85,7 @@ describe("SharedTree", () => {
 	});
 
 	it("can be connected to another tree", async () => {
-		const provider = await TestTreeProvider.create(2);
+		const provider = await TestTreeProvider.create(config, 2);
 		assert(provider.trees[0].isAttached());
 		assert(provider.trees[1].isAttached());
 
@@ -105,7 +112,7 @@ describe("SharedTree", () => {
 	});
 
 	it("can summarize and load", async () => {
-		const provider = await TestTreeProvider.create(1, SummarizeType.onDemand);
+		const provider = await TestTreeProvider.create(config, 1, SummarizeType.onDemand);
 		const [summarizingTree] = provider.trees;
 		const value = 42;
 		initializeTestTree(summarizingTree);
@@ -118,7 +125,7 @@ describe("SharedTree", () => {
 	});
 
 	it("can process ops after loading from summary", async () => {
-		const provider = await TestTreeProvider.create(1, SummarizeType.onDemand);
+		const provider = await TestTreeProvider.create(config, 1, SummarizeType.onDemand);
 		const tree1 = provider.trees[0];
 		const tree2 = await provider.createTree();
 		const tree3 = await provider.createTree();
@@ -189,7 +196,8 @@ describe("SharedTree", () => {
 	});
 
 	it("can load a summary from a tree and receive edits of the new state", async () => {
-		const provider = await TestTreeProvider.create(1, SummarizeType.onDemand);
+		// TODO: correct schema
+		const provider = await TestTreeProvider.create(config, 1, SummarizeType.onDemand);
 		const [summarizingTree] = provider.trees;
 
 		const initialState: JsonableTree = {
@@ -250,9 +258,10 @@ describe("SharedTree", () => {
 			validateRootField(tree, ["A", "C"]);
 		};
 		const provider = await TestTreeProvider.create(
+			config,
 			1,
 			SummarizeType.onDemand,
-			new SharedTreeTestFactory(onCreate),
+			new SharedTreeTestFactory(config, onCreate),
 		);
 		const [tree1] = provider.trees;
 		validateRootField(tree1, ["A", "C"]);
@@ -268,7 +277,7 @@ describe("SharedTree", () => {
 	});
 
 	it("has bounded memory growth in EditManager", () => {
-		const provider = new TestTreeProviderLite(2);
+		const provider = new TestTreeProviderLite(config, 2);
 		const [tree1, tree2] = provider.trees;
 
 		// Make some arbitrary number of edits
@@ -305,9 +314,10 @@ describe("SharedTree", () => {
 			validateRootField(t, ["A", "B"]);
 		};
 		const provider = await TestTreeProvider.create(
+			config,
 			1,
 			undefined,
-			new SharedTreeTestFactory(onCreate),
+			new SharedTreeTestFactory(config, onCreate),
 		);
 		const [tree] = provider.trees;
 		validateRootField(tree, ["A", "B"]);
@@ -316,7 +326,7 @@ describe("SharedTree", () => {
 	describe("Editing", () => {
 		it("can insert and delete a node in a sequence field", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Insert node
@@ -338,7 +348,7 @@ describe("SharedTree", () => {
 
 		it("can handle competing deletes", () => {
 			for (const index of [0, 1, 2, 3]) {
-				const provider = new TestTreeProviderLite(4);
+				const provider = new TestTreeProviderLite(config, 4);
 				const [tree1, tree2, tree3, tree4] = provider.trees;
 				const sequence: JsonableTree[] = [
 					{ type: brand("Number"), value: 0 },
@@ -366,7 +376,7 @@ describe("SharedTree", () => {
 
 		it("can insert and delete a node in an optional field", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Insert node
@@ -447,19 +457,19 @@ describe("SharedTree", () => {
 		}
 
 		it("can abandon a transaction", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1] = provider.trees;
 			abortTransaction(tree1);
 		});
 
 		it("can abandon a transaction on a branch", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree] = provider.trees;
 			abortTransaction(tree.fork());
 		});
 
 		it("can insert multiple nodes", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Insert nodes
@@ -495,7 +505,7 @@ describe("SharedTree", () => {
 		});
 
 		it("can move nodes across fields", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const initialState: JsonableTree = {
@@ -551,7 +561,7 @@ describe("SharedTree", () => {
 
 		// TODO: unskip once the bug which compose is fixed
 		it.skip("can make multiple moves in a transaction", () => {
-			const provider = new TestTreeProviderLite();
+			const provider = new TestTreeProviderLite(config);
 			const [tree] = provider.trees;
 
 			const initialState: JsonableTree = {
@@ -608,7 +618,7 @@ describe("SharedTree", () => {
 	describe("Undo and redo", () => {
 		it("does nothing if there are no commits in the undo stack", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Insert node
@@ -646,7 +656,7 @@ describe("SharedTree", () => {
 
 		it("does not undo edits made remotely", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const initialState: JsonableTree = {
@@ -697,7 +707,7 @@ describe("SharedTree", () => {
 
 		it("the insert of a node in a sequence field", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Insert node
@@ -723,7 +733,7 @@ describe("SharedTree", () => {
 		});
 
 		it("rebased edits", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const expectedState: JsonableTree[] = stringToJsonableTree(["A", "B", "C", "D"]);
@@ -772,7 +782,7 @@ describe("SharedTree", () => {
 		});
 
 		it("updates rebased undoable commits in the correct order", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Initialize the tree
@@ -846,7 +856,7 @@ describe("SharedTree", () => {
 			const value = "42";
 			const value2 = "43";
 			const value3 = "44";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			initializeTestTree(tree1, stringToJsonableTree(["A", "B", "C", "D"]));
@@ -977,7 +987,7 @@ describe("SharedTree", () => {
 
 		it("triggers revertible events for local changes", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const revertibles1: LocalCommitSource[] = [];
@@ -1022,7 +1032,7 @@ describe("SharedTree", () => {
 
 		it("triggers a revertible event for a changes merged into the local branch", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1] = provider.trees;
 			const branch = tree1.fork();
 
@@ -1050,7 +1060,7 @@ describe("SharedTree", () => {
 
 		it("doesn't trigger a revertible event for rebases", () => {
 			const value = "42";
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			// Initialize the tree
@@ -1092,7 +1102,7 @@ describe("SharedTree", () => {
 
 	describe("Rebasing", () => {
 		it("can rebase two inserts", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			insert(tree1, 0, "y");
 			provider.processMessages();
@@ -1108,7 +1118,7 @@ describe("SharedTree", () => {
 		});
 
 		it("can rebase delete over move", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			insert(tree1, 0, "a", "b");
@@ -1136,7 +1146,7 @@ describe("SharedTree", () => {
 		});
 
 		it("can rebase delete over cross-field move", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const initialState: JsonableTree = {
@@ -1197,7 +1207,7 @@ describe("SharedTree", () => {
 		});
 
 		it("can rebase cross-field move over delete", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 
 			const initialState: JsonableTree = {
@@ -1258,7 +1268,7 @@ describe("SharedTree", () => {
 		});
 
 		it("rebases stashed ops with prior state present", async () => {
-			const provider = await TestTreeProvider.create(2);
+			const provider = await TestTreeProvider.create(config, 2);
 			insert(provider.trees[0], 0, "a");
 			await provider.ensureSynchronized();
 
@@ -1288,7 +1298,7 @@ describe("SharedTree", () => {
 
 	describe("Anchors", () => {
 		it("Anchors can be created and dereferenced", () => {
-			const provider = new TestTreeProviderLite();
+			const provider = new TestTreeProviderLite(config);
 			const tree = provider.trees[0];
 
 			const initialState: JsonableTree = {
@@ -1555,7 +1565,7 @@ describe("SharedTree", () => {
 		});
 
 		it("submit edits to Fluid when merging into the root view", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			const baseView = tree1.fork();
 			const view = baseView.fork();
@@ -1572,7 +1582,7 @@ describe("SharedTree", () => {
 		});
 
 		it("do not squash commits", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			let opsReceived = 0;
 			tree2.on("op", () => (opsReceived += 1));
@@ -1748,7 +1758,7 @@ describe("SharedTree", () => {
 		});
 
 		it("don't send ops before committing", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			let opsReceived = 0;
 			tree2.on("op", () => (opsReceived += 1));
@@ -1763,7 +1773,7 @@ describe("SharedTree", () => {
 		});
 
 		it("send only one op after committing", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			let opsReceived = 0;
 			tree2.on("op", () => (opsReceived += 1));
@@ -1777,7 +1787,7 @@ describe("SharedTree", () => {
 		});
 
 		it("do not send an op after committing if nested", () => {
-			const provider = new TestTreeProviderLite(2);
+			const provider = new TestTreeProviderLite(config, 2);
 			const [tree1, tree2] = provider.trees;
 			let opsReceived = 0;
 			tree2.on("op", () => (opsReceived += 1));
@@ -1811,9 +1821,10 @@ describe("SharedTree", () => {
 				assert.deepEqual(getTestValues(parent), ["A", "B", "C"]);
 			};
 			const provider = await TestTreeProvider.create(
+				config,
 				1,
 				undefined,
-				new SharedTreeTestFactory(onCreate),
+				new SharedTreeTestFactory(config, onCreate),
 			);
 			const [tree] = provider.trees;
 			assert.deepEqual(getTestValues(tree), ["A", "B", "C"]);
@@ -1822,7 +1833,7 @@ describe("SharedTree", () => {
 
 	describe.skip("Fuzz Test fail cases", () => {
 		it("Anchor Stability fails when root node is deleted", async () => {
-			const provider = await TestTreeProvider.create(1, SummarizeType.onDemand);
+			const provider = await TestTreeProvider.create(config, 1, SummarizeType.onDemand);
 			const initialTreeState: JsonableTree = {
 				type: brand("Node"),
 				fields: {
@@ -1975,21 +1986,23 @@ function initializeTestTree(
 }
 
 function testTreeView(): ISharedTreeView {
-	const factory = new SharedTreeFactory({ jsonValidator: typeboxValidator });
 	const builder = new SchemaBuilder("testTreeView");
 	const numberSchema = builder.leaf("number", ValueSchema.Number);
 	const treeSchema = builder.struct("root", {
 		x: SchemaBuilder.fieldValue(numberSchema),
 	});
 	const schema = builder.intoDocumentSchema(SchemaBuilder.fieldOptional(Any));
-	const tree = factory.create(new MockFluidDataStoreRuntime(), "test");
-	return tree.schematize({
-		allowedSchemaModifications: AllowedUpdateType.None,
-		initialTree: {
-			x: 24,
+	const factory = new SharedTreeFactory({
+		jsonValidator: typeboxValidator,
+		schema: {
+			allowedSchemaModifications: AllowedUpdateType.None,
+			initialTree: {
+				x: 24,
+			},
+			schema,
 		},
-		schema,
 	});
+	return factory.create(new MockFluidDataStoreRuntime(), "test");
 }
 /**
  * Inserts a single node under the root of the tree with the given value.
@@ -2098,21 +2111,23 @@ function validateTree(tree: ISharedTreeView, expected: JsonableTree[]): void {
  * Runs the given test function as two tests,
  * one where `view` is the root SharedTree view and the other where `view` is a fork.
  * This is useful for testing because both `SharedTree` and `SharedTreeFork` implement `ISharedTreeView` in different ways.
+ *
+ * All cases use `config` for their schema.
  */
 function itView(title: string, fn: (view: ISharedTreeView) => void): void {
 	it(`${title} (root view)`, () => {
-		const provider = new TestTreeProviderLite();
+		const provider = new TestTreeProviderLite(config);
 		// Test an actual SharedTree...
 		fn(provider.trees[0]);
 		// ...as well as a reference view
-		fn(createSharedTreeView());
+		fn(createSharedTreeView(config));
 	});
 
 	it(`${title} (forked view)`, () => {
-		const provider = new TestTreeProviderLite();
+		const provider = new TestTreeProviderLite(config);
 		// Test an actual SharedTree fork...
 		fn(provider.trees[0].fork());
 		// ...as well as a reference fork
-		fn(createSharedTreeView().fork());
+		fn(createSharedTreeView(config).fork());
 	});
 }

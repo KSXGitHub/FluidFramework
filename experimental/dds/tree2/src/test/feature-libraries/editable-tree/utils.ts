@@ -28,9 +28,9 @@ import {
 	getField,
 	isEditableTree,
 	getPrimaryField,
-	getFieldKind,
 	getFieldSchema,
 	parentField,
+	TypedSchemaCollection,
 } from "../../../feature-libraries";
 
 /**
@@ -38,7 +38,7 @@ import {
  * fields to be unwrapped according to {@link UnwrappedEditableField} documentation.
  */
 export function expectTreeEquals(
-	schemaData: SchemaData,
+	schemaData: TypedSchemaCollection,
 	inputField: UnwrappedEditableField,
 	expected: JsonableTree,
 ): void {
@@ -77,7 +77,7 @@ export function expectTreeEquals(
 		const subNode = node[key];
 		const expectedField = getGenericTreeField(expected, key, false);
 		const isSequence =
-			getFieldKind(getFieldSchema(brand(key), type)).multiplicity === Multiplicity.Sequence;
+			getFieldSchema(brand(key), type).kind.multiplicity === Multiplicity.Sequence;
 		// implicit sequence
 		if (isSequence) {
 			expectTreeSequence(schemaData, subNode, expectedField);
@@ -94,7 +94,7 @@ export function expectTreeEquals(
  * where every element might be unwrapped on not.
  */
 export function expectTreeSequence(
-	schemaData: SchemaData,
+	schemaData: TypedSchemaCollection,
 	field: UnwrappedEditableField,
 	expected: JsonableTree[],
 ): void {
@@ -113,13 +113,13 @@ export function expectTreeSequence(
  * are handled in the same way.
  */
 export function expectFieldEquals(
-	schemaData: SchemaData,
+	schemaData: TypedSchemaCollection,
 	field: EditableField,
 	expected: JsonableTree[],
 ): void {
 	assert(Array.isArray(expected));
 	assert.equal(field.length, expected.length);
-	const fieldKind = getFieldKind(field.fieldSchema);
+	const fieldKind = field.fieldSchema.kind;
 	if (fieldKind.multiplicity !== Multiplicity.Sequence) {
 		assert(field.length <= 1);
 	}
@@ -149,7 +149,7 @@ export function expectFieldEquals(
  * and expecting them to be "non-unwrapped" EditableTrees.
  */
 export function expectNodeEquals(
-	schemaData: SchemaData,
+	schemaData: TypedSchemaCollection,
 	node: EditableTree,
 	expected: JsonableTree,
 ): void {

@@ -4,13 +4,12 @@
  */
 
 import { MockFluidDataStoreRuntime } from "@fluidframework/test-runtime-utils";
+import { TestTreeProviderLite, initializeTestTree } from "../utils";
 import { brand, useDeterministicStableId } from "../../util";
 import { AllowedUpdateType, FieldKey, UpPath, ValueSchema, rootFieldKey } from "../../core";
 import { ISharedTree, ISharedTreeView, SharedTreeFactory } from "../../shared-tree";
 import { Any, FieldKinds, SchemaBuilder, singleTextCursor } from "../../feature-libraries";
 import { typeboxValidator } from "../../external-utilities";
-
-const factory = new SharedTreeFactory({ jsonValidator: typeboxValidator });
 
 const builder = new SchemaBuilder("test trees");
 const rootNodeSchema = builder.map("TestInner", SchemaBuilder.fieldSequence(Any));
@@ -22,18 +21,25 @@ function generateCompleteTree(
 	height: number,
 	nodesPerField: number,
 ): ISharedTree {
-	const tree = factory.create(
-		new MockFluidDataStoreRuntime({ clientId: "test-client", id: "test" }),
-		"test",
-	);
-	tree.schematize({
+	const provider = new TestTreeProviderLite({
 		allowedSchemaModifications: AllowedUpdateType.None,
 		schema: testSchema,
 		initialTree: [],
 	});
+	const tree = provider.trees[0];
+	initializeTestTree(tree, undefined, testSchema);
 	generateTreeRecursively(tree, undefined, fields, height, nodesPerField, { value: 1 });
 	return tree;
 }
+
+const factory = new SharedTreeFactory({
+	jsonValidator: typeboxValidator,
+	schema: {
+		allowedSchemaModifications: AllowedUpdateType.None,
+		schema: testSchema,
+		initialTree: [],
+	},
+});
 
 function generateTreeRecursively(
 	tree: ISharedTreeView,
@@ -116,7 +122,6 @@ export function generateTestTrees(): { name: string; tree: () => ISharedTree }[]
 					new MockFluidDataStoreRuntime({ clientId: "test-client", id: "test" }),
 					"test",
 				);
-				tree.schematize(config);
 
 				const field = tree.editor.optionalField({
 					parent: undefined,
@@ -148,7 +153,6 @@ export function generateTestTrees(): { name: string; tree: () => ISharedTree }[]
 					new MockFluidDataStoreRuntime({ clientId: "test-client", id: "test" }),
 					"test",
 				);
-				tree.schematize(config);
 
 				tree.storedSchema.update(docSchema);
 				tree.transaction.start();

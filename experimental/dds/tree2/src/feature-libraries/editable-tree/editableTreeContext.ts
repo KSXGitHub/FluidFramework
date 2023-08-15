@@ -12,13 +12,13 @@ import {
 	ForestEvents,
 	FieldStoredSchema,
 	FieldKey,
-	SchemaData,
 } from "../../core";
 import { ISubscribable } from "../../events";
 import { DefaultEditBuilder } from "../default-field-kinds";
 import { NodeKeyManager } from "../node-key";
-import { FieldGenerator } from "../contextuallyTyped";
-import { EditableField, NewFieldContent, UnwrappedEditableField } from "./editableTreeTypes";
+import { FieldGenerator, NewFieldContent } from "../contextuallyTyped";
+import { TypedSchemaCollection } from "../typed-schema";
+import { EditableField, UnwrappedEditableField } from "./editableTreeTypes";
 import { makeField, unwrappedField } from "./editableField";
 import { ProxyTarget } from "./ProxyTarget";
 
@@ -75,7 +75,7 @@ export interface EditableTreeContext extends ISubscribable<ForestEvents> {
 	 * Schema used within this context.
 	 * All data must conform to these schema.
 	 */
-	readonly schema: SchemaData;
+	readonly schema: TypedSchemaCollection;
 
 	/**
 	 * Call before editing.
@@ -124,6 +124,7 @@ export class ProxyContext implements EditableTreeContext {
 	 * If present, clients may query the {@link LocalNodeKey} of a node directly via the {@link localNodeKeySymbol}.
 	 */
 	public constructor(
+		public readonly schema: TypedSchemaCollection,
 		public readonly forest: IEditableForest,
 		public readonly editor: DefaultEditBuilder,
 		public readonly nodeKeys: NodeKeyManager,
@@ -193,10 +194,6 @@ export class ProxyContext implements EditableTreeContext {
 		return proxifiedField;
 	}
 
-	public get schema(): SchemaData {
-		return this.forest.schema;
-	}
-
 	public on<K extends keyof ForestEvents>(eventName: K, listener: ForestEvents[K]): () => void {
 		return this.forest.on(eventName, listener);
 	}
@@ -214,10 +211,11 @@ export class ProxyContext implements EditableTreeContext {
  * This is necessary for supporting using this tree across edits to the forest, and not leaking memory.
  */
 export function getEditableTreeContext(
+	schema: TypedSchemaCollection,
 	forest: IEditableForest,
 	editor: DefaultEditBuilder,
 	nodeKeyManager: NodeKeyManager,
 	nodeKeyFieldKey?: FieldKey,
 ): EditableTreeContext {
-	return new ProxyContext(forest, editor, nodeKeyManager, nodeKeyFieldKey);
+	return new ProxyContext(schema, forest, editor, nodeKeyManager, nodeKeyFieldKey);
 }

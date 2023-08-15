@@ -44,7 +44,7 @@ import {
 } from "../feature-libraries";
 import { HasListeners, IEmitter, ISubscribable, createEmitter } from "../events";
 import { JsonCompatibleReadOnly, brand } from "../util";
-import { SchematizeConfiguration, schematizeView } from "./schematizedTree";
+import { SchematizeConfiguration } from "./schematizedTree";
 import {
 	ISharedTreeView,
 	SharedTreeView,
@@ -59,21 +59,23 @@ import {
  * See [the README](../../README.md) for details.
  * @alpha
  */
-export interface ISharedTree extends ISharedObject, ISharedTreeView {}
+export interface ISharedTree<TRootSchema extends FieldSchema = FieldSchema>
+	extends ISharedObject,
+		ISharedTreeView<TRootSchema> {}
 
 /**
  * Shared tree, configured with a good set of indexes and field kinds which will maintain compatibility over time.
  *
  * TODO: detail compatibility requirements.
  */
-export class SharedTree
+export class SharedTree<TRootSchema extends FieldSchema>
 	extends SharedTreeCore<DefaultEditBuilder, DefaultChangeset>
-	implements ISharedTree
+	implements ISharedTree<TRootSchema>
 {
 	private readonly _events: ISubscribable<ViewEvents> &
 		IEmitter<ViewEvents> &
 		HasListeners<ViewEvents>;
-	private readonly view: ISharedTreeView;
+	private readonly view: ISharedTreeView<TRootSchema>;
 	private readonly schema: SchemaEditor<InMemoryStoredSchemaRepository>;
 	private readonly nodeKeyIndex: NodeKeyIndex;
 
@@ -81,7 +83,7 @@ export class SharedTree
 		id: string,
 		runtime: IFluidDataStoreRuntime,
 		attributes: IChannelAttributes,
-		optionsParam: SharedTreeOptions,
+		optionsParam: SharedTreeOptions<TRootSchema>,
 		telemetryContextPrefix: string,
 	) {
 		const options = { jsonValidator: noopValidator, ...optionsParam };
@@ -109,7 +111,7 @@ export class SharedTree
 		this.schema = new SchemaEditor(schema, (op) => this.submitLocalMessage(op), options);
 		this.nodeKeyIndex = new NodeKeyIndex(brand(nodeKeyFieldKey));
 		this._events = createEmitter<ViewEvents>();
-		this.view = createSharedTreeView({
+		this.view = createSharedTreeView(optionsParam.schema, {
 			branch: this.getLocalBranch(),
 			schema,
 			forest,
@@ -152,31 +154,25 @@ export class SharedTree
 		return this.view.locate(anchor);
 	}
 
-	public schematize<TRoot extends FieldSchema>(
-		config: SchematizeConfiguration<TRoot>,
-	): ISharedTreeView {
-		return schematizeView(this, config);
-	}
-
-	public get transaction(): SharedTreeView["transaction"] {
+	public get transaction(): SharedTreeView<TRootSchema>["transaction"] {
 		return this.view.transaction;
 	}
 
-	public get nodeKey(): SharedTreeView["nodeKey"] {
+	public get nodeKey(): SharedTreeView<TRootSchema>["nodeKey"] {
 		return this.view.nodeKey;
 	}
 
-	public fork(): SharedTreeView {
+	public fork(): SharedTreeView<TRootSchema> {
 		return this.view.fork();
 	}
 
-	public merge(view: SharedTreeView): void;
-	public merge(view: SharedTreeView, disposeView: boolean): void;
-	public merge(view: SharedTreeView, disposeView = true): void {
+	public merge(view: SharedTreeView<TRootSchema>): void;
+	public merge(view: SharedTreeView<TRootSchema>, disposeView: boolean): void;
+	public merge(view: SharedTreeView<TRootSchema>, disposeView = true): void {
 		this.view.merge(view, disposeView);
 	}
 
-	public rebase(fork: SharedTreeView): void {
+	public rebase(fork: SharedTreeView<TRootSchema>): void {
 		fork.rebaseOnto(this.view);
 	}
 
@@ -224,13 +220,16 @@ export class SharedTree
 /**
  * @alpha
  */
-export interface SharedTreeOptions extends Partial<ICodecOptions> {}
+export interface SharedTreeOptions<TRootSchema extends FieldSchema> extends Partial<ICodecOptions> {
+	schema: SchematizeConfiguration<TRootSchema>;
+}
 
 /**
  * A channel factory that creates {@link ISharedTree}s.
  * @alpha
  */
-export class SharedTreeFactory implements IChannelFactory {
+// TODO: build schematize into this, making it generic
+export class SharedTreeFactory<TRootSchema extends FieldSchema> implements IChannelFactory {
 	public type: string = "SharedTree";
 
 	public attributes: IChannelAttributes = {
@@ -239,22 +238,26 @@ export class SharedTreeFactory implements IChannelFactory {
 		packageVersion: "0.0.0",
 	};
 
-	public constructor(private readonly options: SharedTreeOptions = {}) {}
+	public constructor(private readonly options: SharedTreeOptions<TRootSchema>) {}
 
 	public async load(
 		runtime: IFluidDataStoreRuntime,
 		id: string,
 		services: IChannelServices,
 		channelAttributes: Readonly<IChannelAttributes>,
-	): Promise<ISharedTree> {
+	): Promise<ISharedTree<TRootSchema>> {
 		const tree = new SharedTree(id, runtime, channelAttributes, this.options, "SharedTree");
 		await tree.load(services);
+		// TODO: support ephemeral error states or wait for load to finish (via waitContainerToCatchUp) incase there are schema impacting trailing ops.
+		// TODO: maybe disable initial tree updating on this code-path?
+		tree.schematize(this.options.schema);
 		return tree;
 	}
 
-	public create(runtime: IFluidDataStoreRuntime, id: string): ISharedTree {
+	public create(runtime: IFluidDataStoreRuntime, id: string): ISharedTree<TRootSchema> {
 		const tree = new SharedTree(id, runtime, this.attributes, this.options, "SharedTree");
 		tree.initializeLocal();
+		tree.schematize(this.options.schema);
 		return tree;
 	}
 }

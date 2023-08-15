@@ -9,8 +9,6 @@ import {
 	FieldKey,
 	TreeNavigationResult,
 	ITreeSubscriptionCursor,
-	FieldStoredSchema,
-	TreeStoredSchema,
 	ValueSchema,
 	mapCursorField,
 	CursorLocationType,
@@ -21,13 +19,13 @@ import {
 } from "../../core";
 import { FieldKind, Multiplicity } from "../modular-schema";
 import {
-	getFieldKind,
 	getPrimaryField,
 	isPrimitiveValue,
 	ContextuallyTypedNodeData,
 	arrayLikeMarkerSymbol,
 	cursorFromContextualData,
-	cursorsFromContextualData,
+	NewFieldContent,
+	normalizeNewFieldContent,
 } from "../contextuallyTyped";
 import {
 	FieldKinds,
@@ -35,7 +33,8 @@ import {
 	SequenceFieldEditBuilder,
 	ValueFieldEditBuilder,
 } from "../default-field-kinds";
-import { assertValidIndex, fail, isReadonlyArray, assertNonNegativeSafeInteger } from "../../util";
+import { assertValidIndex, fail, assertNonNegativeSafeInteger } from "../../util";
+import { FieldSchema, TreeSchema } from "../typed-schema";
 import {
 	AdaptingProxyHandler,
 	adaptWithProxy,
@@ -47,10 +46,8 @@ import { ProxyContext } from "./editableTreeContext";
 import {
 	EditableField,
 	EditableTree,
-	NewFieldContent,
 	UnwrappedEditableField,
 	UnwrappedEditableTree,
-	areCursors,
 	proxyTargetSymbol,
 } from "./editableTreeTypes";
 import { makeTree } from "./editableTree";
@@ -58,7 +55,7 @@ import { ProxyTarget } from "./ProxyTarget";
 
 export function makeField(
 	context: ProxyContext,
-	fieldSchema: FieldStoredSchema,
+	fieldSchema: FieldSchema,
 	cursor: ITreeSubscriptionCursor,
 ): EditableField {
 	const targetSequence = new FieldProxyTarget(context, fieldSchema, cursor);
@@ -72,14 +69,12 @@ function isFieldProxyTarget(target: ProxyTarget<Anchor | FieldAnchor>): target i
 /**
  * @returns the key, if any, of the primary array field.
  */
-function getPrimaryArrayKey(
-	type: TreeStoredSchema,
-): { key: FieldKey; schema: FieldStoredSchema } | undefined {
+function getPrimaryArrayKey(type: TreeSchema): { key: FieldKey; schema: FieldSchema } | undefined {
 	const primary = getPrimaryField(type);
 	if (primary === undefined) {
 		return undefined;
 	}
-	const kind = getFieldKind(primary.schema);
+	const kind = primary.schema.kind;
 	if (kind.multiplicity === Multiplicity.Sequence) {
 		// TODO: this could have issues if there are non-primary keys
 		// that can collide with the array APIs (length or integers).
@@ -99,15 +94,14 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 
 	public constructor(
 		context: ProxyContext,
-		// TODO: use view schema typed in editableTree
-		public readonly fieldSchema: FieldStoredSchema,
+		public readonly fieldSchema: FieldSchema,
 		cursor: ITreeSubscriptionCursor,
 	) {
 		super(context, cursor);
 		assert(cursor.mode === CursorLocationType.Fields, 0x453 /* must be in fields mode */);
 		this.fieldKey = cursor.getFieldKey();
 		this[arrayLikeMarkerSymbol] = true;
-		this.kind = getFieldKind(this.fieldSchema);
+		this.kind = this.fieldSchema.kind;
 	}
 
 	/**
@@ -124,23 +118,7 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 	}
 
 	public normalizeNewContent(content: NewFieldContent): readonly ITreeCursor[] {
-		if (areCursors(content)) {
-			if (this.kind.multiplicity === Multiplicity.Sequence) {
-				assert(isReadonlyArray(content), 0x6b7 /* sequence fields require array content */);
-				return content;
-			} else {
-				if (isReadonlyArray(content)) {
-					assert(
-						content.length === 1,
-						0x6b8 /* non-sequence fields can not be provided content that is multiple cursors */,
-					);
-					return content;
-				}
-				return [content];
-			}
-		}
-
-		return cursorsFromContextualData(this.context, this.fieldSchema, content);
+		return normalizeNewFieldContent(this.context, this.fieldSchema, content);
 	}
 
 	public get [proxyTargetSymbol](): FieldProxyTarget {
@@ -330,7 +308,7 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 	public insertNodes(index: number, newContent: NewFieldContent): void {
 		const fieldEditor = this.sequenceEditor();
 		const content = this.normalizeNewContent(newContent);
-		const fieldKind = getFieldKind(this.fieldSchema);
+		const fieldKind = this.fieldSchema.kind;
 		// TODO: currently for all field kinds the nodes can be created by editor using `sequenceField.insert()`.
 		// Uncomment the next line and remove non-sequence related code when the editor will become more schema-aware.
 		// assert(fieldKind.multiplicity === Multiplicity.Sequence, "The field must be of a sequence kind.");
@@ -628,10 +606,10 @@ function unwrappedTree(
  */
 export function unwrappedField(
 	context: ProxyContext,
-	fieldSchema: FieldStoredSchema,
+	fieldSchema: FieldSchema,
 	cursor: ITreeSubscriptionCursor,
 ): UnwrappedEditableField {
-	const fieldKind = getFieldKind(fieldSchema);
+	const fieldKind = fieldSchema.kind;
 	if (fieldKind.multiplicity === Multiplicity.Sequence) {
 		return makeField(context, fieldSchema, cursor);
 	}

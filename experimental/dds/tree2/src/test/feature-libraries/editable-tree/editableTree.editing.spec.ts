@@ -405,7 +405,7 @@ describe("editable-tree: editing", () => {
 
 	describe(`can create, edit, move and delete`, () => {
 		it("insertNodes in a sequence field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.sequence),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: [], foo2: [] },
@@ -432,7 +432,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("replaceNodes in a sequence field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.sequence),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: [], foo2: [] },
@@ -462,7 +462,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("moveNodes in a sequence field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.sequence),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: ["a", "b", "c"], foo2: [] },
@@ -481,7 +481,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("assignment and deletion on sequence field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.sequence),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: [], foo2: [] },
@@ -534,7 +534,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("regression test for sequence setting empty sequence", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.sequence),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: [], foo2: [] },
@@ -547,7 +547,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("as optional field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.optional),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: undefined, foo2: undefined },
@@ -619,7 +619,7 @@ describe("editable-tree: editing", () => {
 		});
 
 		it("as value field", () => {
-			const view = createSharedTreeView().schematize({
+			const view = createSharedTreeView({
 				schema: getTestSchema(FieldKinds.value),
 				allowedSchemaModifications: AllowedUpdateType.None,
 				initialTree: { foo: "initial", foo2: "" },

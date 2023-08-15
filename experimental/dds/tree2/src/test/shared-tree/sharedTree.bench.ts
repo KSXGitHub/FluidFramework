@@ -18,7 +18,7 @@ import {
 } from "../../feature-libraries";
 import { jsonNumber, jsonSchema, singleJsonCursor } from "../../domains";
 import { brand, requireAssignableTo } from "../../util";
-import { insert, TestTreeProviderLite, toJsonableTree } from "../utils";
+import { insert, jsonSequenceRootSchema, TestTreeProviderLite, toJsonableTree } from "../utils";
 import { typeboxValidator } from "../../external-utilities";
 import { ISharedTree, ISharedTreeView, SharedTreeFactory } from "../../shared-tree";
 import { AllowedUpdateType, FieldKey, moveToDetachedField, rootFieldKey, UpPath } from "../../core";
@@ -59,7 +59,29 @@ const deepSchema = deepBuilder.intoDocumentSchema(
 	SchemaBuilder.field(FieldKinds.value, linkedListSchema, jsonNumber),
 );
 
-const factory = new SharedTreeFactory({ jsonValidator: typeboxValidator });
+function factoryDeep(depth: number, leafValue: number): ISharedTree {
+	const factory = new SharedTreeFactory({
+		jsonValidator: typeboxValidator,
+		schema: {
+			schema: deepSchema,
+			initialTree: makeJsDeepTree(depth, leafValue),
+			allowedSchemaModifications: AllowedUpdateType.None,
+		},
+	});
+	return factory.create(new MockFluidDataStoreRuntime(), "test");
+}
+
+function factoryWide(numberOfNodes: number, endLeafValue?: number): ISharedTree {
+	const factory = new SharedTreeFactory({
+		jsonValidator: typeboxValidator,
+		schema: {
+			schema: wideSchema,
+			initialTree: makeJsWideTreeWithEndValue(numberOfNodes, endLeafValue),
+			allowedSchemaModifications: AllowedUpdateType.None,
+		},
+	});
+	return factory.create(new MockFluidDataStoreRuntime(), "test");
+}
 
 /**
  * JS object like a deep tree.
@@ -93,12 +115,12 @@ function makeJsDeepTree(depth: number, leafValue: number): JSDeepTree | number {
  * @param endLeafValue - the value of the end leaf of the tree
  * @returns a tree with specified number of nodes, with the end leaf node set to the endLeafValue
  */
-function makeJsWideTreeWithEndValue(numberOfNodes: number, endLeafValue: number): JSWideTree {
+function makeJsWideTreeWithEndValue(numberOfNodes: number, endLeafValue?: number): JSWideTree {
 	const numbers = [];
 	for (let index = 0; index < numberOfNodes - 1; index++) {
 		numbers.push(index);
 	}
-	numbers.push(endLeafValue);
+	numbers.push(endLeafValue ?? numberOfNodes - 1);
 	return { foo: numbers };
 }
 
@@ -191,12 +213,7 @@ describe("SharedTree benchmarks", () => {
 				type: benchmarkType,
 				title: `Deep Tree with cursor: reads with ${numberOfNodes} nodes`,
 				before: () => {
-					tree = factory.create(new MockFluidDataStoreRuntime(), "test");
-					const schematized = tree.schematize({
-						allowedSchemaModifications: AllowedUpdateType.None,
-						initialTree: makeJsDeepTree(numberOfNodes, 1),
-						schema: deepSchema,
-					});
+					tree = factoryDeep(numberOfNodes, 1);
 				},
 				benchmarkFn: () => {
 					const { depth, value } = readDeepCursorTree(tree);
@@ -212,17 +229,10 @@ describe("SharedTree benchmarks", () => {
 				type: benchmarkType,
 				title: `Wide Tree with cursor: reads with ${numberOfNodes} nodes`,
 				before: () => {
-					tree = factory.create(new MockFluidDataStoreRuntime(), "test");
-					const numbers = [];
+					tree = factoryWide(numberOfNodes, numberOfNodes - 1);
 					for (let index = 0; index < numberOfNodes; index++) {
-						numbers.push(index);
 						expected += index;
 					}
-					const schematized = tree.schematize({
-						allowedSchemaModifications: AllowedUpdateType.None,
-						initialTree: makeJsWideTreeWithEndValue(numberOfNodes, numberOfNodes - 1),
-						schema: wideSchema,
-					});
 				},
 				benchmarkFn: () => {
 					const { nodesCount, sum } = readWideCursorTree(tree);
@@ -239,12 +249,7 @@ describe("SharedTree benchmarks", () => {
 				type: benchmarkType,
 				title: `Deep Tree with Editable Tree: reads with ${numberOfNodes} nodes`,
 				before: () => {
-					const untypedTree = factory.create(new MockFluidDataStoreRuntime(), "test");
-					tree = untypedTree.schematize({
-						allowedSchemaModifications: AllowedUpdateType.None,
-						initialTree: makeJsDeepTree(numberOfNodes, 1),
-						schema: deepSchema,
-					});
+					tree = factoryDeep(numberOfNodes, 1);
 				},
 				benchmarkFn: () => {
 					const { depth, value } = readDeepEditableTree(tree);
@@ -260,17 +265,10 @@ describe("SharedTree benchmarks", () => {
 				type: benchmarkType,
 				title: `Wide Tree with Editable Tree: reads with ${numberOfNodes} nodes`,
 				before: () => {
-					const untypedTree = factory.create(new MockFluidDataStoreRuntime(), "test");
-					const numbers = [];
+					tree = factoryWide(numberOfNodes);
 					for (let index = 0; index < numberOfNodes; index++) {
-						numbers.push(index);
 						expected += index;
 					}
-					tree = untypedTree.schematize({
-						allowedSchemaModifications: AllowedUpdateType.None,
-						initialTree: { foo: numbers },
-						schema: wideSchema,
-					});
 				},
 				benchmarkFn: () => {
 					const { nodesCount, sum } = readWideEditableTree(tree);
@@ -294,12 +292,7 @@ describe("SharedTree benchmarks", () => {
 						assert.equal(state.iterationsPerBatch, 1);
 
 						// Setup
-						const untypedTree = factory.create(new MockFluidDataStoreRuntime(), "test");
-						const tree = untypedTree.schematize({
-							allowedSchemaModifications: AllowedUpdateType.None,
-							initialTree: makeJsDeepTree(numberOfNodes, 1),
-							schema: deepSchema,
-						});
+						const tree = factoryDeep(numberOfNodes, 1);
 						const path = deepPath(numberOfNodes);
 
 						// Measure
@@ -315,7 +308,7 @@ describe("SharedTree benchmarks", () => {
 						// Cleanup + validation
 						const expected = jsonableTreeFromCursor(
 							cursorForTypedData(
-								{ schema: tree.storedSchema },
+								{ schema: deepSchema },
 								deepSchema.rootFieldSchema.allowedTypes,
 								makeJsDeepTree(numberOfNodes, setCount),
 							),
@@ -341,16 +334,7 @@ describe("SharedTree benchmarks", () => {
 						assert.equal(state.iterationsPerBatch, 1);
 
 						// Setup
-						const untypedTree = factory.create(new MockFluidDataStoreRuntime(), "test");
-						const numbers = [];
-						for (let index = 0; index < numberOfNodes; index++) {
-							numbers.push(index);
-						}
-						const tree = untypedTree.schematize({
-							allowedSchemaModifications: AllowedUpdateType.None,
-							initialTree: { foo: numbers },
-							schema: wideSchema,
-						});
+						const tree = factoryWide(numberOfNodes);
 
 						const rootPath = {
 							parent: undefined,
@@ -376,7 +360,7 @@ describe("SharedTree benchmarks", () => {
 						const expected = jsonableTreeFromCursor(
 							cursorForTypedTreeData(
 								{
-									schema: tree.storedSchema,
+									schema: wideSchema,
 								},
 								wideRootSchema,
 								makeJsWideTreeWithEndValue(numberOfNodes, setCount),
@@ -407,7 +391,11 @@ describe("SharedTree benchmarks", () => {
 						assert.equal(state.iterationsPerBatch, 1);
 
 						// Setup
-						const provider = new TestTreeProviderLite();
+						const provider = new TestTreeProviderLite({
+							schema: jsonSequenceRootSchema,
+							initialTree: [],
+							allowedSchemaModifications: AllowedUpdateType.None,
+						});
 						const [tree] = provider.trees;
 						for (let i = 0; i < size; i++) {
 							insert(tree, i, "test");
@@ -432,11 +420,11 @@ describe("SharedTree benchmarks", () => {
 	// divided by the number of peers.
 	describe("rebasing commits", () => {
 		const commitCounts = [1, 10, 20];
-		const nbPeers = 5;
-		for (const nbCommits of commitCounts) {
+		const numberOfPeers = 5;
+		for (const numberOfCommits of commitCounts) {
 			benchmark({
 				type: BenchmarkType.Measurement,
-				title: `for ${nbCommits} commits per peer for ${nbPeers} peers`,
+				title: `for ${numberOfCommits} commits per peer for ${numberOfPeers} peers`,
 				benchmarkFnCustom: async <T>(state: BenchmarkTimer<T>) => {
 					let duration: number;
 					do {
@@ -444,9 +432,16 @@ describe("SharedTree benchmarks", () => {
 						assert.equal(state.iterationsPerBatch, 1);
 
 						// Setup
-						const provider = new TestTreeProviderLite(nbPeers);
-						for (let iCommit = 0; iCommit < nbCommits; iCommit++) {
-							for (let iPeer = 0; iPeer < nbPeers; iPeer++) {
+						const provider = new TestTreeProviderLite(
+							{
+								schema: jsonSequenceRootSchema,
+								initialTree: [],
+								allowedSchemaModifications: AllowedUpdateType.None,
+							},
+							numberOfPeers,
+						);
+						for (let iCommit = 0; iCommit < numberOfCommits; iCommit++) {
+							for (let iPeer = 0; iPeer < numberOfPeers; iPeer++) {
 								const peer = provider.trees[iPeer];
 								insert(peer, 0, `p${iPeer}c${iCommit}`);
 							}
@@ -457,7 +452,7 @@ describe("SharedTree benchmarks", () => {
 						provider.processMessages();
 						const after = state.timer.now();
 						// Divide the duration by the number of peers so we get the average time per peer.
-						duration = state.timer.toSeconds(before, after) / nbPeers;
+						duration = state.timer.toSeconds(before, after) / numberOfPeers;
 					} while (state.recordBatch(duration));
 				},
 				// Force batch size of 1

@@ -18,7 +18,7 @@ import { convertSummaryTreeToITree } from "@fluidframework/runtime-utils";
 import { FieldKinds, singleTextCursor } from "../../feature-libraries";
 import { ISharedTree, SharedTreeFactory, runSynchronous } from "../../shared-tree";
 import { brand } from "../../util";
-import { TestTreeProviderLite, namedTreeSchema } from "../utils";
+import { TestTreeProviderLite, namedTreeSchema, wrongSchemaConfig } from "../utils";
 import { TreeValue, fieldSchema, SchemaData, UpPath, rootFieldKey } from "../../core";
 import { typeboxValidator } from "../../external-utilities";
 
@@ -31,7 +31,7 @@ describe("Summary benchmarks", () => {
 	// TODO: report these sizes as benchmark output which can be tracked over time.
 	describe("size of", () => {
 		it("an empty tree.", async () => {
-			const provider = new TestTreeProviderLite();
+			const provider = new TestTreeProviderLite(wrongSchemaConfig);
 			const tree = provider.trees[0];
 			const { summary } = tree.getAttachSummary(true);
 			const summaryString = JSON.stringify(summary);
@@ -89,7 +89,10 @@ describe("Summary benchmarks", () => {
 			benchmarkType: BenchmarkType = BenchmarkType.Perspective,
 		) {
 			let summaryTree: ITree;
-			const factory = new SharedTreeFactory({ jsonValidator: typeboxValidator });
+			const factory = new SharedTreeFactory({
+				jsonValidator: typeboxValidator,
+				schema: wrongSchemaConfig,
+			});
 			benchmark({
 				title: `a ${shape} tree with ${numberOfNodes} node${
 					numberOfNodes !== 1 ? "s" : ""
@@ -158,7 +161,7 @@ function setTestValuesWide(tree: ISharedTree, numberOfNodes: number): void {
  * @returns the byte size of the tree's summary
  */
 export function getInsertsSummaryTree(numberOfNodes: number, shape: TreeShape): ISummaryTree {
-	const provider = new TestTreeProviderLite();
+	const provider = new TestTreeProviderLite(wrongSchemaConfig);
 	const tree = provider.trees[0];
 	initializeTestTreeWithValue(tree, 1);
 

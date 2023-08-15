@@ -4,26 +4,27 @@
  */
 
 import { assert } from "@fluidframework/common-utils";
-import { fail } from "../util";
+import { fail, isReadonlyArray } from "../util";
 import {
 	EmptyKey,
 	FieldKey,
 	Value,
-	TreeStoredSchema,
 	ValueSchema,
-	FieldStoredSchema,
 	TreeSchemaIdentifier,
 	TreeTypeSet,
 	MapTree,
 	ITreeCursorSynchronous,
 	SchemaData,
+	ITreeCursor,
 } from "../core";
-// TODO:
-// This module currently is assuming use of default-field-kinds.
-// The field kinds should instead come from a view schema registry thats provided somewhere.
-import { fieldKinds } from "./default-field-kinds";
-import { FieldKind, Multiplicity } from "./modular-schema";
-import { AllowedTypes, FieldSchema, TreeSchema, allowedTypesToTypeSet } from "./typed-schema";
+import { Multiplicity } from "./modular-schema";
+import {
+	AllowedTypes,
+	FieldSchema,
+	TreeSchema,
+	TypedSchemaCollection,
+	allowedTypesToTypeSet,
+} from "./typed-schema";
 import { singleMapTreeCursor } from "./mapTreeCursor";
 import { areCursors, isPrimitive } from "./editable-tree";
 import { AllowedTypesToTypedTrees, ApiMode, TypedField, TypedNode } from "./schema-aware";
@@ -96,8 +97,8 @@ export function allowsValue(schema: ValueSchema | undefined, nodeValue: Value): 
  * @alpha
  */
 export function getPrimaryField(
-	schema: TreeStoredSchema,
-): { key: FieldKey; schema: FieldStoredSchema } | undefined {
+	schema: TreeSchema,
+): { key: FieldKey; schema: FieldSchema } | undefined {
 	// TODO: have a better mechanism for this. See note on EmptyKey.
 	const field = schema.structFields.get(EmptyKey);
 	if (field === undefined) {
@@ -106,16 +107,8 @@ export function getPrimaryField(
 	return { key: EmptyKey, schema: field };
 }
 
-// TODO: this (and most things in this file) should use ViewSchema, and already have the full kind information.
-export function getFieldSchema(field: FieldKey, schema: TreeStoredSchema): FieldStoredSchema {
+export function getFieldSchema(field: FieldKey, schema: TreeSchema): FieldSchema {
 	return schema.structFields.get(field) ?? schema.mapFields ?? FieldSchema.empty;
-}
-
-export function getFieldKind(fieldSchema: FieldStoredSchema): FieldKind {
-	// TODO:
-	// This module currently is assuming use of defaultFieldKinds.
-	// The field kinds should instead come from a view schema registry thats provided somewhere.
-	return fieldKinds.get(fieldSchema.kind.identifier) ?? fail("missing field kind");
 }
 
 /**
@@ -222,7 +215,7 @@ export interface TreeDataContext {
 	/**
 	 * Schema for the document which the tree will be used in.
 	 */
-	readonly schema: SchemaData;
+	readonly schema: TypedSchemaCollection;
 
 	/**
 	 * Procedural data generator for fields.
@@ -234,7 +227,7 @@ export interface TreeDataContext {
 	 * order of invocation should be made consistent and documented.
 	 * This will be important for identifier elision optimizations in tree encoding for session based identifier generation.
 	 */
-	fieldSource?(key: FieldKey, schema: FieldStoredSchema): undefined | FieldGenerator;
+	fieldSource?(key: FieldKey, schema: FieldSchema): undefined | FieldGenerator;
 }
 
 /**
@@ -313,7 +306,7 @@ export interface ContextuallyTypedNodeDataObject {
  * Note that this may return true for cases where data is incompatible, but it must not return false in cases where the data is compatible.
  */
 function shallowCompatibilityTest(
-	schemaData: SchemaData,
+	schemaData: TypedSchemaCollection,
 	type: TreeSchemaIdentifier,
 	data: ContextuallyTypedNodeData,
 ): boolean {
@@ -329,10 +322,7 @@ function shallowCompatibilityTest(
 	}
 	if (isArrayLike(data)) {
 		const primary = getPrimaryField(schema);
-		return (
-			primary !== undefined &&
-			getFieldKind(primary.schema).multiplicity === Multiplicity.Sequence
-		);
+		return primary !== undefined && primary.schema.kind.multiplicity === Multiplicity.Sequence;
 	}
 	if (data[typeNameSymbol] !== undefined) {
 		return data[typeNameSymbol] === type;
@@ -405,7 +395,7 @@ export function cursorForTypedData<T extends AllowedTypes>(
  */
 export function cursorsFromContextualData(
 	context: TreeDataContext,
-	field: FieldStoredSchema,
+	field: FieldSchema,
 	data: ContextuallyTypedNodeData | undefined,
 ): ITreeCursorSynchronous[] {
 	const mapTrees = applyFieldTypesFromContext(context, field, data);
@@ -508,11 +498,11 @@ export function applyTypesFromContext(
 function setFieldForKey(
 	key: FieldKey,
 	context: TreeDataContext,
-	schema: TreeStoredSchema,
+	schema: TreeSchema,
 	fields: Map<FieldKey, MapTree[]>,
 ): void {
 	const requiredFieldSchema = getFieldSchema(key, schema);
-	const multiplicity = getFieldKind(requiredFieldSchema).multiplicity;
+	const multiplicity = requiredFieldSchema.kind.multiplicity;
 	if (multiplicity === Multiplicity.Value && context.fieldSource !== undefined) {
 		const fieldGenerator = context.fieldSource(key, requiredFieldSchema);
 		if (fieldGenerator !== undefined) {
@@ -541,10 +531,10 @@ function fieldKeysFromData(data: ContextuallyTypedNodeDataObject): FieldKey[] {
  */
 export function applyFieldTypesFromContext(
 	context: TreeDataContext,
-	field: FieldStoredSchema,
+	field: FieldSchema,
 	data: ContextuallyTypedFieldData,
 ): MapTree[] {
-	const multiplicity = getFieldKind(field).multiplicity;
+	const multiplicity = field.kind.multiplicity;
 	if (data === undefined) {
 		assert(
 			multiplicity === Multiplicity.Forbidden || multiplicity === Multiplicity.Optional,
@@ -564,4 +554,46 @@ export function applyFieldTypesFromContext(
 		0x4da /* single value provided for an unsupported field */,
 	);
 	return [applyTypesFromContext(context, field.types, data)];
+}
+
+/**
+ * Content to use for a field.
+ *
+ * When used, this content will be deeply copied into the tree, and must comply with the schema.
+ *
+ * The content must follow the {@link Multiplicity} of the {@link FieldKind}:
+ * - use a single cursor for an `optional` or `value` field;
+ * - use array of cursors for a `sequence` field;
+ *
+ * TODO: this should allow a field cursor instead of an array of cursors.
+ * TODO: Make this generic so a variant of this type that allows placeholders for detached sequences to consume.
+ * @alpha
+ */
+export type NewFieldContent = ITreeCursor | readonly ITreeCursor[] | ContextuallyTypedFieldData;
+
+/**
+ * Convert NewFieldContent into ITreeCursor array.
+ */
+export function normalizeNewFieldContent(
+	context: TreeDataContext,
+	schema: FieldSchema,
+	content: NewFieldContent,
+): readonly ITreeCursor[] {
+	if (areCursors(content)) {
+		if (schema.kind.multiplicity === Multiplicity.Sequence) {
+			assert(isReadonlyArray(content), 0x6b7 /* sequence fields require array content */);
+			return content;
+		} else {
+			if (isReadonlyArray(content)) {
+				assert(
+					content.length === 1,
+					0x6b8 /* non-sequence fields can not be provided content that is multiple cursors */,
+				);
+				return content;
+			}
+			return [content];
+		}
+	}
+
+	return cursorsFromContextualData(context, schema, content);
 }
