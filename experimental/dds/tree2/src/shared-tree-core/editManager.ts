@@ -428,8 +428,10 @@ export class EditManager<
 	}
 
 	/**
-	 * Needs to be called after a summary is loaded.
-	 * @remarks This is necessary to keep the trunk's repairDataStoreProvider up to date with the
+	 * Needs to be called after a summary is finished loading (all parts, not just the edit manager data).
+	 *
+	 * @remarks
+	 * This is necessary to keep the trunk's repairDataStoreProvider up to date with the
 	 * local's after a summary load.
 	 */
 	public afterSummaryLoad(): void {

@@ -178,7 +178,9 @@ describe("Fuzz - Targeted", () => {
 		};
 		const emitter = new TypedEventEmitter<DDSFuzzHarnessEvents>();
 		emitter.on("testStart", (initialState: BranchedTreeFuzzTestState) => {
-			initialState.branch = initialState.clients[0].channel.fork();
+			const fork = initialState.clients[0].channel.fork();
+			assert(fork instanceof SharedTreeView);
+			initialState.branch = fork;
 			initialState.branch.transaction.start();
 		});
 		emitter.on("testEnd", (finalState: BranchedTreeFuzzTestState) => {
