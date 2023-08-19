@@ -55,6 +55,7 @@ export {
 	SchemaData,
 	FieldAnchor,
 	RevisionTag,
+	ChangesetLocalId,
 	TaggedChange,
 	RepairDataStore,
 	ReadonlyRepairDataStore,
@@ -122,7 +123,6 @@ export {
 } from "./domains";
 
 export {
-	ChangesetLocalId,
 	IdAllocator,
 	ModularChangeset,
 	EditDescription,
