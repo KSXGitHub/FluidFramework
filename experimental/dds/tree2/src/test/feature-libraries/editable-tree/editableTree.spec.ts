@@ -257,7 +257,7 @@ describe("editable-tree: read-only", () => {
 	it("traverse a complete tree by iteration", () => {
 		const forest = setupForest(fullSchemaData, personData);
 		const context = getReadonlyEditableTreeContext(forest);
-		expectFieldEquals(forest.schema, context.root, [personJsonableTree()]);
+		expectFieldEquals(context.schema, context.root, [personJsonableTree()]);
 	});
 
 	it('"in" works as expected', () => {
@@ -322,7 +322,7 @@ describe("editable-tree: read-only", () => {
 			const context = getReadonlyEditableTreeContext(forest);
 			assert(isEditableField(context.unwrappedRoot));
 			assert.deepEqual([...context.unwrappedRoot], []);
-			expectFieldEquals(forest.schema, context.root, []);
+			expectFieldEquals(context.schema, context.root, []);
 			context.free();
 		}
 		// Test 1 item
@@ -330,8 +330,8 @@ describe("editable-tree: read-only", () => {
 			const forest = setupForest(schemaData, [{}]);
 			const context = getReadonlyEditableTreeContext(forest);
 			assert(isEditableField(context.unwrappedRoot));
-			expectTreeSequence(forest.schema, context.unwrappedRoot, [emptyNode]);
-			expectFieldEquals(forest.schema, context.root, [emptyNode]);
+			expectTreeSequence(context.schema, context.unwrappedRoot, [emptyNode]);
+			expectFieldEquals(context.schema, context.root, [emptyNode]);
 			context.free();
 		}
 		// Test 2 items
@@ -339,8 +339,8 @@ describe("editable-tree: read-only", () => {
 			const forest = setupForest(schemaData, [{}, {}]);
 			const context = getReadonlyEditableTreeContext(forest);
 			assert(isEditableField(context.unwrappedRoot));
-			expectTreeSequence(forest.schema, context.unwrappedRoot, [emptyNode, emptyNode]);
-			expectFieldEquals(forest.schema, context.root, [emptyNode, emptyNode]);
+			expectTreeSequence(context.schema, context.unwrappedRoot, [emptyNode, emptyNode]);
+			expectFieldEquals(context.schema, context.root, [emptyNode, emptyNode]);
 			context.free();
 		}
 	});
@@ -350,7 +350,7 @@ describe("editable-tree: read-only", () => {
 		const forest = setupForest(schemaData, {});
 		const context = getReadonlyEditableTreeContext(forest);
 		assert(isEditableTree(context.unwrappedRoot));
-		expectTreeEquals(forest.schema, context.unwrappedRoot, emptyNode);
+		expectTreeEquals(context.schema, context.unwrappedRoot, emptyNode);
 		context.free();
 	});
 
@@ -361,15 +361,15 @@ describe("editable-tree: read-only", () => {
 			const forest = setupForest(schemaData, undefined);
 			const context = getReadonlyEditableTreeContext(forest);
 			assert.equal(context.unwrappedRoot, undefined);
-			expectFieldEquals(forest.schema, context.root, []);
+			expectFieldEquals(context.schema, context.root, []);
 			context.free();
 		}
 		// With value
 		{
 			const forest = setupForest(schemaData, {});
 			const context = getReadonlyEditableTreeContext(forest);
-			expectTreeEquals(forest.schema, context.unwrappedRoot, emptyNode);
-			expectFieldEquals(forest.schema, context.root, [emptyNode]);
+			expectTreeEquals(context.schema, context.unwrappedRoot, emptyNode);
+			expectFieldEquals(context.schema, context.root, [emptyNode]);
 			context.free();
 		}
 	});
@@ -380,7 +380,7 @@ describe("editable-tree: read-only", () => {
 		const forest = setupForest(schemaData, 1);
 		const context = getReadonlyEditableTreeContext(forest);
 		assert.equal(context.unwrappedRoot, 1);
-		expectFieldEquals(forest.schema, context.root, [{ type: int32Schema.name, value: 1 }]);
+		expectFieldEquals(context.schema, context.root, [{ type: int32Schema.name, value: 1 }]);
 		context.free();
 	});
 
@@ -399,7 +399,7 @@ describe("editable-tree: read-only", () => {
 		// access without unwrapping
 		const child = context.unwrappedRoot[getField](brand("child"));
 		assert(isEditableField(child));
-		expectFieldEquals(forest.schema, child, [{ type: stringSchema.name, value: "x" }]);
+		expectFieldEquals(context.schema, child, [{ type: stringSchema.name, value: "x" }]);
 		context.free();
 	});
 
@@ -415,8 +415,8 @@ describe("editable-tree: read-only", () => {
 			assert(isEditableField(context.unwrappedRoot));
 			assert.equal(context.unwrappedRoot.length, 0);
 			assert.deepEqual([...context.unwrappedRoot], []);
-			expectTreeEquals(forest.schema, context.unwrappedRoot, { type: phonesSchema.name });
-			expectFieldEquals(forest.schema, context.unwrappedRoot, []);
+			expectTreeEquals(context.schema, context.unwrappedRoot, { type: phonesSchema.name });
+			expectFieldEquals(context.schema, context.unwrappedRoot, []);
 			assert.throws(
 				() => (context.unwrappedRoot as EditableField).getNode(0),
 				(e: Error) =>
@@ -441,7 +441,7 @@ describe("editable-tree: read-only", () => {
 			assert(isEditableField(context.unwrappedRoot));
 			assert.equal(context.unwrappedRoot.length, 1);
 			assert.deepEqual([...context.unwrappedRoot], [1]);
-			expectFieldEquals(forest.schema, context.root, data);
+			expectFieldEquals(context.schema, context.root, data);
 			context.free();
 		}
 	});

@@ -155,3 +155,14 @@ export class ViewSchema {
 export interface Sourced {
 	readonly builder: Named<string>;
 }
+
+/**
+ * Convert from stored schema to view schema.
+ * Any code which uses a schema aware API can't use this, and must use a typed view schema instead.
+ *
+ * As this constructs new view schema objects, it is not actually compatible with and other view schema, and can not be used for schema aware APIs.
+ * For now it is useful to help get to a state where view schema is used in more places, but long term most use of this should be removed.
+ */
+export function inferTypedSchemaCollection(data: SchemaData): TypedSchemaCollection {
+	fail("TODO");
+}

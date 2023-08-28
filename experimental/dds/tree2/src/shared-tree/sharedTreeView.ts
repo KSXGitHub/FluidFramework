@@ -17,7 +17,6 @@ import {
 	UndoRedoManager,
 	LocalCommitSource,
 	schemaDataIsEmpty,
-	SchemaData,
 } from "../core";
 import { HasListeners, IEmitter, ISubscribable, createEmitter } from "../events";
 import {
@@ -42,10 +41,10 @@ import {
 	ModularChangeset,
 	nodeKeyFieldKey,
 	FieldSchema,
-	TypedSchemaCollection,
+	inferTypedSchemaCollection,
 } from "../feature-libraries";
 import { SharedTreeBranch } from "../shared-tree-core";
-import { TransactionResult, brand, fail } from "../util";
+import { TransactionResult, brand } from "../util";
 import { noopValidator } from "../codec";
 import {
 	InitializeAndSchematizeConfiguration,
@@ -574,19 +573,6 @@ export function schematizeView<TRoot extends FieldSchema>(
 	schematize(view.events, view.storedSchema, config);
 
 	return view;
-}
-
-/**
- * Convert from stored schema to view schema.
- * Any code which uses a schema aware API can't use this, and must use a typed view schema instead.
- *
- * As this constructs new view schema objects, it is not actually compatible with and other view schema, and can not be used for schema aware APIs.
- * For now it is useful to help get to a state where view schema is used in more places, but long term most use of this should be removed.
- *
- * @deprecated Use typed schema from the actual schema declaration instead.
- */
-export function inferTypedSchemaCollection(data: SchemaData): TypedSchemaCollection {
-	fail("TODO");
 }
 
 /**

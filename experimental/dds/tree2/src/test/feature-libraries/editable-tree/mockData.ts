@@ -24,6 +24,7 @@ import {
 	Any,
 	TypedSchemaCollection,
 	createMockNodeKeyManager,
+	inferTypedSchemaCollection,
 } from "../../../feature-libraries";
 import {
 	ValueSchema,
@@ -33,7 +34,6 @@ import {
 	IEditableForest,
 	InMemoryStoredSchemaRepository,
 	initializeForest,
-	SchemaData,
 } from "../../../core";
 import { brand, Brand } from "../../../util";
 
@@ -247,7 +247,8 @@ export function buildTestSchema<T extends FieldSchema>(rootField: T) {
 export function getReadonlyEditableTreeContext(forest: IEditableForest): EditableTreeContext {
 	// This will error if someone tries to call mutation methods on it
 	const dummyEditor = {} as unknown as DefaultEditBuilder;
-	return getEditableTreeContext(forest, dummyEditor, createMockNodeKeyManager());
+	const dummyViewSchema = inferTypedSchemaCollection(forest.schema);
+	return getEditableTreeContext(dummyViewSchema, forest, dummyEditor, createMockNodeKeyManager());
 }
 
 export function setupForest<T extends FieldSchema>(
@@ -258,7 +259,7 @@ export function setupForest<T extends FieldSchema>(
 	const forest = buildForest(schemaRepo);
 	const root = cursorsFromContextualData(
 		{
-			schema: schemaRepo,
+			schema,
 		},
 		schema.rootFieldSchema,
 		data,
@@ -277,7 +278,7 @@ export function buildTestTree(
 	return context;
 }
 
-export function buildTestPerson(): readonly [SchemaData, Person] {
+export function buildTestPerson(): readonly [TypedSchemaCollection, Person] {
 	const context = buildTestTree(personData);
 	return [context.schema, context.unwrappedRoot as Person];
 }

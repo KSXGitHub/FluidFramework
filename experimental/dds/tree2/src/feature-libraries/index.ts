@@ -148,6 +148,7 @@ export {
 	InternalTypedSchemaTypes,
 	ViewSchema,
 	SchemaLintConfiguration,
+	inferTypedSchemaCollection,
 } from "./typed-schema";
 
 export { mapFieldMarks, mapMark, mapMarkList, populateChildModifications } from "./deltaUtils";

@@ -20,7 +20,7 @@ export {
 	LazyTreeSchema,
 } from "./typedTreeSchema";
 
-export { ViewSchema } from "./view";
+export { ViewSchema, inferTypedSchemaCollection } from "./view";
 
 // Below here are things that are used by the above, but not part of the desired API surface.
 import * as InternalTypedSchemaTypes from "./internal";

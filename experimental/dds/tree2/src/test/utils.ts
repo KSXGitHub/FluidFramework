@@ -586,7 +586,11 @@ export function viewWithContent(
 	const forest = buildForest(schema);
 	initializeForest(
 		forest,
-		normalizeNewFieldContent({ schema }, schema.rootFieldSchema, content.initialTree),
+		normalizeNewFieldContent(
+			{ schema: content.schema },
+			content.schema.rootFieldSchema,
+			content.initialTree,
+		),
 	);
 	const view = createSharedTreeView({ ...args, forest, schema });
 	return view;

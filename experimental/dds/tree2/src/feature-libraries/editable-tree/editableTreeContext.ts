@@ -17,10 +17,10 @@ import { ISubscribable } from "../../events";
 import { DefaultEditBuilder } from "../default-field-kinds";
 import { NodeKeyManager } from "../node-key";
 import { FieldGenerator, NewFieldContent } from "../contextuallyTyped";
+import { TypedSchemaCollection } from "../typed-schema";
 import { EditableField, UnwrappedEditableField } from "./editableTreeTypes";
 import { makeField, unwrappedField } from "./editableField";
 import { ProxyTarget } from "./ProxyTarget";
-import { TypedSchemaCollection } from "../typed-schema";
 
 /**
  * A common context of a "forest" of EditableTrees.

@@ -2000,7 +2000,7 @@ export interface UntypedField<TContext = UntypedTreeContext, TChild = UntypedTre
 // @alpha
 interface UntypedOptionalField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>> extends UntypedField<TContext, TChild, UntypedTree<TContext>, TUnwrappedChild> {
     readonly content: TChild;
-    readonly fieldSchema: FieldStoredSchema & {
+    readonly fieldSchema: FieldSchema & {
         readonly kind: Optional;
     };
     remove(): void;
@@ -2009,7 +2009,7 @@ interface UntypedOptionalField<TContext = UntypedTreeContext, TChild = UntypedTr
 
 // @alpha
 interface UntypedSequenceField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>, TNewFieldContent = NewFieldContent> extends UntypedField<TContext, TChild, UntypedTree<TContext>, TUnwrappedChild> {
-    readonly fieldSchema: FieldStoredSchema & {
+    readonly fieldSchema: FieldSchema & {
         readonly kind: Sequence;
     };
     insertNodes(index: number, newContent: TNewFieldContent): void;
@@ -2048,7 +2048,7 @@ export interface UntypedTreeCore<TContext = UntypedTreeContext, TField = Untyped
         readonly index: number;
     };
     [treeStatus](): TreeStatus;
-    readonly [typeSymbol]: TreeStoredSchema & Named<TreeSchemaIdentifier>;
+    readonly [typeSymbol]: TreeSchema;
 }
 
 // @alpha
