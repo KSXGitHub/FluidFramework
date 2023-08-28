@@ -63,7 +63,6 @@ export {
 	ContextuallyTypedNodeData,
 	MarkedArrayLike,
 	isContextuallyTypedNodeDataObject,
-	getFieldKind,
 	getFieldSchema,
 	ArrayLikeMut,
 	cursorFromContextualData,

@@ -492,7 +492,7 @@ export interface EditableTreeContext extends ISubscribable<ForestEvents> {
     free(): void;
     prepareForEdit(): void;
     get root(): EditableField;
-    readonly schema: SchemaData;
+    readonly schema: TypedSchemaCollection;
     setContent(data: NewFieldContent): void;
     get unwrappedRoot(): UnwrappedEditableField;
 }
@@ -773,9 +773,9 @@ export interface GenericTreeNode<TChild> extends GenericFieldsNode<TChild>, Node
 export const getField: unique symbol;
 
 // @alpha (undocumented)
-export function getPrimaryField(schema: TreeStoredSchema): {
+export function getPrimaryField(schema: TreeSchema): {
     key: FieldKey;
-    schema: FieldStoredSchema;
+    schema: FieldSchema;
 } | undefined;
 
 // @alpha (undocumented)
@@ -1064,7 +1064,7 @@ export interface ISharedTreeView extends AnchorLocator {
 export function isNeverField(policy: FullSchemaPolicy, originalData: SchemaData, field: FieldStoredSchema): boolean;
 
 // @alpha (undocumented)
-export function isPrimitive(schema: TreeStoredSchema): boolean;
+export function isPrimitive(schema: TreeSchema): boolean;
 
 // @alpha (undocumented)
 export function isPrimitiveValue(nodeValue: Value): nodeValue is PrimitiveValue;
@@ -1819,8 +1819,8 @@ export interface TreeContent<TRoot extends FieldSchema = FieldSchema> extends Sc
 
 // @alpha
 export interface TreeDataContext {
-    fieldSource?(key: FieldKey, schema: FieldStoredSchema): undefined | FieldGenerator;
-    readonly schema: SchemaData;
+    fieldSource?(key: FieldKey, schema: FieldSchema): undefined | FieldGenerator;
+    readonly schema: TypedSchemaCollection;
 }
 
 // @alpha (undocumented)
@@ -1965,7 +1965,7 @@ type UntypedApi<Mode extends ApiMode> = {
 export interface UntypedField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TParent = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>> extends MarkedArrayLike<TUnwrappedChild> {
     readonly context: TContext;
     readonly fieldKey: FieldKey;
-    readonly fieldSchema: FieldStoredSchema;
+    readonly fieldSchema: FieldSchema;
     getNode(index: number): TChild;
     readonly parent?: TParent;
 }
@@ -1974,7 +1974,7 @@ export interface UntypedField<TContext = UntypedTreeContext, TChild = UntypedTre
 interface UntypedOptionalField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>> extends UntypedField<TContext, TChild, UntypedTree<TContext>, TUnwrappedChild> {
     readonly content: TChild;
     delete(): void;
-    readonly fieldSchema: FieldStoredSchema & {
+    readonly fieldSchema: FieldSchema & {
         readonly kind: Optional;
     };
     setContent(newContent: ITreeCursor | ContextuallyTypedNodeData | undefined): void;
@@ -1984,7 +1984,7 @@ interface UntypedOptionalField<TContext = UntypedTreeContext, TChild = UntypedTr
 interface UntypedSequenceField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>, TNewFieldContent = NewFieldContent> extends UntypedField<TContext, TChild, UntypedTree<TContext>, TUnwrappedChild> {
     delete(): void;
     deleteNodes(index: number, count?: number): void;
-    readonly fieldSchema: FieldStoredSchema & {
+    readonly fieldSchema: FieldSchema & {
         readonly kind: Sequence;
     };
     insertNodes(index: number, newContent: TNewFieldContent): void;
@@ -2020,7 +2020,7 @@ export interface UntypedTreeCore<TContext = UntypedTreeContext, TField = Untyped
         readonly parent: TField;
         readonly index: number;
     };
-    readonly [typeSymbol]: TreeStoredSchema & Named<TreeSchemaIdentifier>;
+    readonly [typeSymbol]: TreeSchema;
 }
 
 // @alpha
@@ -2029,7 +2029,7 @@ export type UntypedTreeOrPrimitive<TContext = UntypedTreeContext> = UntypedTree<
 // @alpha
 interface UntypedValueField<TContext = UntypedTreeContext, TChild = UntypedTree<TContext>, TUnwrappedChild = UnwrappedUntypedTree<TContext>, TNewContent = ContextuallyTypedNodeData> extends UntypedField<TContext, TChild, UntypedTree<TContext>, TUnwrappedChild> {
     readonly content: TChild;
-    readonly fieldSchema: FieldStoredSchema & {
+    readonly fieldSchema: FieldSchema & {
         readonly kind: ValueFieldKind;
     };
     setContent(newContent: ITreeCursor | TNewContent): void;

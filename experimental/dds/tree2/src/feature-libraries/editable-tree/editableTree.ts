@@ -10,9 +10,7 @@ import {
 	FieldKey,
 	TreeNavigationResult,
 	ITreeSubscriptionCursor,
-	FieldStoredSchema,
 	TreeSchemaIdentifier,
-	TreeStoredSchema,
 	mapCursorFields,
 	CursorLocationType,
 	FieldAnchor,
@@ -23,15 +21,8 @@ import {
 } from "../../core";
 import { brand, fail } from "../../util";
 import { FieldKind } from "../modular-schema";
-import {
-	getFieldKind,
-	NewFieldContent,
-	getFieldSchema,
-	typeNameSymbol,
-	valueSymbol,
-} from "../contextuallyTyped";
+import { NewFieldContent, getFieldSchema, typeNameSymbol, valueSymbol } from "../contextuallyTyped";
 import { LocalNodeKey } from "../node-key";
-import { FieldKinds } from "../default-field-kinds";
 import {
 	EditableTreeEvents,
 	getField,
@@ -40,6 +31,7 @@ import {
 	typeSymbol,
 	contextSymbol,
 } from "../untypedTree";
+import { FieldSchema, SchemaBuilder, TreeSchema } from "../typed-schema";
 import { AdaptingProxyHandler, adaptWithProxy, getStableNodeKey } from "./utilities";
 import { ProxyContext } from "./editableTreeContext";
 import {
@@ -63,10 +55,11 @@ export function makeTree(context: ProxyContext, cursor: ITreeSubscriptionCursor)
 	const cached = anchorNode.slots.get(editableTreeSlot);
 	if (cached !== undefined) {
 		context.forest.anchors.forget(anchor);
+		assert(cached[contextSymbol] === context, "contexts must match");
 		return cached;
 	}
 	const newTarget = new NodeProxyTarget(context, cursor, anchorNode, anchor);
-	const output = adaptWithProxy(newTarget, nodeProxyHandler);
+	const output: EditableTree = adaptWithProxy(newTarget, nodeProxyHandler);
 	anchorNode.slots.set(editableTreeSlot, output);
 	anchorNode.on("afterDelete", cleanupTree);
 	return output;
@@ -128,7 +121,7 @@ export class NodeProxyTarget extends ProxyTarget<Anchor> {
 		return this.cursor.type;
 	}
 
-	public get type(): TreeStoredSchema {
+	public get type(): TreeSchema {
 		return (
 			this.context.schema.treeSchema.get(this.typeName) ??
 			fail("requested type does not exist in schema")
@@ -144,10 +137,10 @@ export class NodeProxyTarget extends ProxyTarget<Anchor> {
 	}
 
 	public lookupFieldKind(field: FieldKey): FieldKind {
-		return getFieldKind(this.getFieldSchema(field));
+		return this.getFieldSchema(field).kind;
 	}
 
-	public getFieldSchema(field: FieldKey): FieldStoredSchema {
+	public getFieldSchema(field: FieldKey): FieldSchema {
 		return getFieldSchema(field, this.type);
 	}
 
@@ -197,7 +190,7 @@ export class NodeProxyTarget extends ProxyTarget<Anchor> {
 
 		cursor.exitNode();
 		assert(key === cursor.getFieldKey(), 0x715 /* mismatched keys */);
-		let fieldSchema: FieldStoredSchema;
+		let fieldSchema: FieldSchema;
 
 		// Check if the current node is in a detached sequence.
 		if (this.anchorNode.parent === undefined) {
@@ -219,7 +212,7 @@ export class NodeProxyTarget extends ProxyTarget<Anchor> {
 				// Additionally this approach makes it possible for a user to take an EditableTree node, get its parent, check its schema, down cast based on that, then edit that detached field (ex: removing the node in it).
 				// This MIGHT work properly with existing merge resolution logic (it must keep client in sync and be unable to violate schema), but this either needs robust testing or to be explicitly banned (error before s3ending the op).
 				// Issues like replacing a node in the a removed sequenced then undoing the remove could easily violate schema if not everything works exactly right!
-				fieldSchema = { kind: FieldKinds.sequence };
+				fieldSchema = SchemaBuilder.fieldSequence();
 			}
 		} else {
 			cursor.exitField();

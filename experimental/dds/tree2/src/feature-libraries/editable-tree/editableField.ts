@@ -9,8 +9,6 @@ import {
 	FieldKey,
 	TreeNavigationResult,
 	ITreeSubscriptionCursor,
-	FieldStoredSchema,
-	TreeStoredSchema,
 	ValueSchema,
 	mapCursorField,
 	CursorLocationType,
@@ -21,7 +19,6 @@ import {
 } from "../../core";
 import { FieldKind, Multiplicity } from "../modular-schema";
 import {
-	getFieldKind,
 	getPrimaryField,
 	isPrimitiveValue,
 	ContextuallyTypedNodeData,
@@ -37,6 +34,7 @@ import {
 	ValueFieldEditBuilder,
 } from "../default-field-kinds";
 import { assertValidIndex, fail, assertNonNegativeSafeInteger } from "../../util";
+import { FieldSchema, TreeSchema } from "../typed-schema";
 import {
 	AdaptingProxyHandler,
 	adaptWithProxy,
@@ -57,7 +55,7 @@ import { ProxyTarget } from "./ProxyTarget";
 
 export function makeField(
 	context: ProxyContext,
-	fieldSchema: FieldStoredSchema,
+	fieldSchema: FieldSchema,
 	cursor: ITreeSubscriptionCursor,
 ): EditableField {
 	const fieldAnchor = cursor.buildFieldAnchor();
@@ -84,14 +82,12 @@ function isFieldProxyTarget(target: ProxyTarget<Anchor | FieldAnchor>): target i
 /**
  * @returns the key, if any, of the primary array field.
  */
-function getPrimaryArrayKey(
-	type: TreeStoredSchema,
-): { key: FieldKey; schema: FieldStoredSchema } | undefined {
+function getPrimaryArrayKey(type: TreeSchema): { key: FieldKey; schema: FieldSchema } | undefined {
 	const primary = getPrimaryField(type);
 	if (primary === undefined) {
 		return undefined;
 	}
-	const kind = getFieldKind(primary.schema);
+	const kind = primary.schema.kind;
 	if (kind.multiplicity === Multiplicity.Sequence) {
 		// TODO: this could have issues if there are non-primary keys
 		// that can collide with the array APIs (length or integers).
@@ -111,8 +107,7 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 
 	public constructor(
 		context: ProxyContext,
-		// TODO: use view schema typed in editableTree
-		public readonly fieldSchema: FieldStoredSchema,
+		public readonly fieldSchema: FieldSchema,
 		cursor: ITreeSubscriptionCursor,
 		fieldAnchor: FieldAnchor,
 	) {
@@ -120,7 +115,7 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 		assert(cursor.mode === CursorLocationType.Fields, 0x453 /* must be in fields mode */);
 		this.fieldKey = cursor.getFieldKey();
 		this[arrayLikeMarkerSymbol] = true;
-		this.kind = getFieldKind(this.fieldSchema);
+		this.kind = this.fieldSchema.kind;
 	}
 
 	/**
@@ -323,7 +318,7 @@ export class FieldProxyTarget extends ProxyTarget<FieldAnchor> implements Editab
 	public insertNodes(index: number, newContent: NewFieldContent): void {
 		const fieldEditor = this.sequenceEditor();
 		const content = this.normalizeNewContent(newContent);
-		const fieldKind = getFieldKind(this.fieldSchema);
+		const fieldKind = this.fieldSchema.kind;
 		// TODO: currently for all field kinds the nodes can be created by editor using `sequenceField.insert()`.
 		// Uncomment the next line and remove non-sequence related code when the editor will become more schema-aware.
 		// assert(fieldKind.multiplicity === Multiplicity.Sequence, "The field must be of a sequence kind.");
@@ -621,10 +616,10 @@ function unwrappedTree(
  */
 export function unwrappedField(
 	context: ProxyContext,
-	fieldSchema: FieldStoredSchema,
+	fieldSchema: FieldSchema,
 	cursor: ITreeSubscriptionCursor,
 ): UnwrappedEditableField {
-	const fieldKind = getFieldKind(fieldSchema);
+	const fieldKind = fieldSchema.kind;
 	if (fieldKind.multiplicity === Multiplicity.Sequence) {
 		return makeField(context, fieldSchema, cursor);
 	}
