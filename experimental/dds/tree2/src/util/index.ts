@@ -71,6 +71,7 @@ export {
 	generateStableId,
 	useDeterministicStableId,
 	objectToMap,
+	mapToObject,
 	oneFromSet,
 	Named,
 } from "./utils";

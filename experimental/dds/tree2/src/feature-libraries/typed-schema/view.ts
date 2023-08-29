@@ -3,7 +3,8 @@
  * Licensed under the MIT License.
  */
 
-import { Named, fail } from "../../util";
+import { assert } from "@fluidframework/common-utils";
+import { Named, fail, mapToObject } from "../../util";
 import {
 	FieldStoredSchema,
 	FieldKey,
@@ -15,7 +16,9 @@ import {
 	Compatibility,
 } from "../../core";
 import { FullSchemaPolicy, allowsRepoSuperset, isNeverTree } from "../modular-schema";
-import { TypedSchemaCollection } from "./schemaBuilder";
+import { FieldKindTypes, defaultSchemaPolicy } from "../default-field-kinds";
+import { SchemaBuilder, TypedSchemaCollection } from "./schemaBuilder";
+import { Any, FieldSchema, TreeSchema } from "./typedTreeSchema";
 
 /**
  * A collection of View information for schema, including policy.
@@ -164,5 +167,55 @@ export interface Sourced {
  * For now it is useful to help get to a state where view schema is used in more places, but long term most use of this should be removed.
  */
 export function inferTypedSchemaCollection(data: SchemaData): TypedSchemaCollection {
-	fail("TODO");
+	const builder = new SchemaBuilder("inferTypedSchemaCollection", {
+		rejectEmpty: false,
+		rejectForbidden: false,
+	});
+
+	const types: Map<TreeSchemaIdentifier, TreeSchema> = new Map();
+
+	for (const [identifier, treeSchema] of data.treeSchema) {
+		types.set(identifier, inferTypedSchema(identifier, treeSchema, builder, types));
+	}
+
+	return builder.intoDocumentSchema(inferTypedFieldSchema(data.rootFieldSchema, types));
+}
+
+function inferTypedSchema(
+	identifier: TreeSchemaIdentifier,
+	data: TreeStoredSchema,
+	builder: SchemaBuilder,
+	map: ReadonlyMap<TreeSchemaIdentifier, TreeSchema>,
+): TreeSchema {
+	if (data.leafValue !== undefined) {
+		assert(data.mapFields === undefined, "invalid schema");
+		assert(data.structFields.size === 0, "invalid schema");
+		return builder.leaf(identifier, data.leafValue);
+	}
+	if (data.mapFields !== undefined) {
+		assert(data.structFields.size === 0, "invalid schema");
+		return builder.map(identifier, inferTypedFieldSchema(data.mapFields, map));
+	}
+	const fields: Map<FieldKey, FieldSchema> = new Map();
+	for (const [key, field] of data.structFields) {
+		fields.set(key, inferTypedFieldSchema(field, map));
+	}
+	return builder.struct(identifier, mapToObject(fields));
+}
+
+function inferTypedFieldSchema(
+	data: FieldStoredSchema,
+	map: ReadonlyMap<TreeSchemaIdentifier, TreeSchema>,
+): FieldSchema {
+	const kind: FieldKindTypes = (defaultSchemaPolicy.fieldKinds.get(data.kind.identifier) ??
+		fail("missing field kind")) as FieldKindTypes;
+
+	const types = data.types;
+
+	return SchemaBuilder.field(
+		kind,
+		...(types === undefined
+			? [Any]
+			: [...types].map((name) => () => map.get(name) ?? fail("missing type"))),
+	);
 }

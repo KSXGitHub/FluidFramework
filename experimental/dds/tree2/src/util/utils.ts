@@ -360,6 +360,36 @@ export function objectToMap<MapKey extends string | number | symbol, MapValue>(
 }
 
 /**
+ * Convert an map into an object.
+ *
+ * Inverse of {@link objectToMap}.
+ *
+ * @remarks
+ * Resulting object should be used with caution, see advice about use of such objects on {@link objectToMap}.
+ */
+export function mapToObject<MapKey extends string, MapValue>(
+	map: ReadonlyMap<MapKey, MapValue>,
+): Record<MapKey, MapValue> {
+	// Here `string` is used instead of the more correct MapKey since that makes it compile.
+	// TypeScript really should let MapKey be used here, but that errors and all the easy casts to fix it cause lint errors.
+	// TypeScript really allows string without breaking the return since apparently Record is contra variant over its key type
+	// (which should allow MapKey to work here, but assignability in TypeScript isn't transitive in this case)/
+	// Note that records are inherently unsound when used for object since they imply all fields exist when this is actually impossible (for this line no keys are defined, which is a lot less than all possible strings):
+	// this unsoundness makes the above noted issues somewhat unsurprising and what "fixing" would even mean unclear.
+	const obj: Record<string, MapValue> = {};
+	for (const [key, value] of map) {
+		// like `obj[keyString] = content;` except safe when keyString == "__proto__".
+		Object.defineProperty(obj, key, {
+			enumerable: true,
+			configurable: true,
+			writable: true,
+			value,
+		});
+	}
+	return obj;
+}
+
+/**
  * Returns the value from `set` if it contains exactly one item, otherwise `undefined`.
  */
 export function oneFromSet<T>(set: ReadonlySet<T> | undefined): T | undefined {
