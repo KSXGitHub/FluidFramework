@@ -20,6 +20,42 @@ export interface IProvideFluidHandleContext {
 }
 
 /**
+ * Handle to a shared {@link FluidObject}.
+ */
+export abstract class FluidHandle<
+	// REVIEW: Constrain `T` to something? How do we support dds and datastores safely?
+	T = FluidObject & IFluidLoadable,
+> {
+	/**
+	 * @param absolutePath - The absolute path to the handle context from the root.
+	 */
+	protected constructor(protected readonly absolutePath: string) {}
+
+	/**
+	 * Flag indicating whether or not the entity has services attached.
+	 */
+	public abstract readonly isAttached: boolean;
+
+	/**
+	 * @deprecated To be removed. This is part of an internal API surface and should not be called.
+	 *
+	 * Runs through the graph and attach the bounded handles.
+	 */
+	public abstract attachGraph(): void;
+
+	/**
+	 * Returns a promise to the Fluid Object referenced by the handle.
+	 */
+	public abstract get(): Promise<T>;
+
+	/**
+	 * Binds the given handle to this one or attach the given handle if this handle is attached.
+	 * A bound handle will also be attached once this handle is attached.
+	 */
+	protected abstract bind(handle: FluidHandle): void;
+}
+
+/**
  * Describes a routing context from which other `IFluidHandleContext`s are defined.
  * @alpha
  */
@@ -49,7 +85,8 @@ export interface IFluidHandleContext extends IProvideFluidHandleContext {
 }
 
 /**
- * @alpha
+ * @deprecated - use FluidHandle instead.
+ *  @alpha
  */
 export const IFluidHandle: keyof IProvideFluidHandle = "IFluidHandle";
 
@@ -57,11 +94,13 @@ export const IFluidHandle: keyof IProvideFluidHandle = "IFluidHandle";
  * @alpha
  */
 export interface IProvideFluidHandle {
-	readonly IFluidHandle: IFluidHandle;
+	readonly IFluidHandle: FluidHandle;
 }
 
 /**
  * Handle to a shared {@link FluidObject}.
+ *
+ * @deprecated - use FluidHandle instead
  * @alpha
  */
 export interface IFluidHandle<

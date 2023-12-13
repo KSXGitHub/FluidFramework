@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuid } from "uuid";
-import { IFluidHandle, IFluidHandleContext } from "@fluidframework/core-interfaces";
+import { FluidHandle, IFluidHandleContext } from "@fluidframework/core-interfaces";
 import { IDocumentStorageService } from "@fluidframework/driver-definitions";
 import {
 	ICreateBlobResponse,
@@ -49,7 +49,7 @@ import { IBlobMetadata } from "./metadata";
  * DataObject.request() recognizes requests in the form of `/blobs/<id>`
  * and loads blob.
  */
-export class BlobHandle implements IFluidHandle<ArrayBufferLike> {
+export class BlobHandle extends FluidHandle<ArrayBufferLike> {
 	private attached: boolean = false;
 
 	public get IFluidHandle(): IFluidHandle {
@@ -68,7 +68,7 @@ export class BlobHandle implements IFluidHandle<ArrayBufferLike> {
 		public get: () => Promise<any>,
 		private readonly onAttachGraph?: () => void,
 	) {
-		this.absolutePath = generateHandleContextPath(path, this.routeContext);
+		super(generateHandleContextPath(path, this.routeContext));
 	}
 
 	public attachGraph() {

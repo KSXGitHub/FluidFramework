@@ -3,7 +3,7 @@
  * Licensed under the MIT License.
  */
 
-import { IFluidHandle } from "@fluidframework/core-interfaces";
+import { FluidHandle } from "@fluidframework/core-interfaces";
 import { Jsonable } from "./jsonable";
 
 /**
@@ -24,4 +24,4 @@ import { Jsonable } from "./jsonable";
  * ```
  * @alpha
  */
-export type Serializable<T> = Jsonable<T, IFluidHandle>;
+export type Serializable<T> = Jsonable<T, FluidHandle>;

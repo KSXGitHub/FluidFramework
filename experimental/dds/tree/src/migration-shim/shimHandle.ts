@@ -3,7 +3,7 @@
  * Licensed under the MIT License.
  */
 
-import { type IFluidHandle } from '@fluidframework/core-interfaces';
+import { FluidHandle } from '@fluidframework/core-interfaces';
 import { type IShim } from './types.js';
 
 /**
@@ -14,12 +14,15 @@ import { type IShim } from './types.js';
  * Local handles such as the FluidObjectHandle and the SharedObjectHandle don't work as they do not properly bind the
  * Shim's underlying DDS.
  */
-export class ShimHandle<TShim extends IShim> implements IFluidHandle<TShim> {
-	public constructor(private readonly shim: TShim) {}
+export class ShimHandle<TShim extends IShim> extends FluidHandle<TShim> {
+	public constructor(private readonly shim: TShim) {
+		super(shim.currentTree.handle.absolutePath);
+	}
 
-	public get absolutePath(): string {
+	public override get absolutePath(): string {
 		return this.shim.currentTree.handle.absolutePath;
 	}
+
 	public get isAttached(): boolean {
 		return this.shim.currentTree.handle.isAttached;
 	}
@@ -29,10 +32,10 @@ export class ShimHandle<TShim extends IShim> implements IFluidHandle<TShim> {
 	public async get(): Promise<TShim> {
 		return this.shim;
 	}
-	public bind(handle: IFluidHandle): void {
+	public bind(handle: FluidHandle): void {
 		return this.shim.currentTree.handle.bind(handle);
 	}
-	public get IFluidHandle(): IFluidHandle<TShim> {
+	public get IFluidHandle(): FluidHandle<TShim> {
 		return this;
 	}
 }

@@ -6,7 +6,7 @@
 import { assert } from "@fluidframework/core-utils";
 import { RuntimeHeaders } from "@fluidframework/container-runtime";
 import {
-	IFluidHandle,
+	FluidHandle,
 	IFluidHandleContext,
 	IRequest,
 	FluidObject,
@@ -20,7 +20,7 @@ import { responseToException } from "@fluidframework/runtime-utils";
  * custom objects) that are stored in SharedObjects. The Data Store or SharedObject corresponding to the
  * IFluidHandle can be retrieved by calling `get` on it.
  */
-export class RemoteFluidObjectHandle implements IFluidHandle {
+export class RemoteFluidObjectHandle extends FluidHandle {
 	public get IFluidHandleContext() {
 		return this;
 	}
@@ -37,9 +37,10 @@ export class RemoteFluidObjectHandle implements IFluidHandle {
 	 * @param routeContext - The root IFluidHandleContext that has a route to this handle.
 	 */
 	constructor(
-		public readonly absolutePath: string,
+		absolutePath: string,
 		public readonly routeContext: IFluidHandleContext,
 	) {
+		super(absolutePath);
 		assert(
 			absolutePath.startsWith("/"),
 			0x19d /* "Handles should always have absolute paths" */,
@@ -70,7 +71,7 @@ export class RemoteFluidObjectHandle implements IFluidHandle {
 		return;
 	}
 
-	public bind(handle: IFluidHandle): void {
+	public bind(handle: FluidHandle): void {
 		handle.attachGraph();
 	}
 }

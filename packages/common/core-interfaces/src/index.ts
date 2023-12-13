@@ -52,6 +52,7 @@ export {
 	IProvideFluidHandleContext,
 	IFluidHandle,
 	IProvideFluidHandle,
+	FluidHandle,
 } from "./handles";
 
 export type {
